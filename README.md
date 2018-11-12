@@ -18,3 +18,10 @@ The package requires the following modules to run:
 - numpy
 - scipy
 - matplotlib
+
+
+The Misc. folder contains other structural engineering related tools. The tools may 
+eventually be converted to new modules/functions in the structpy package.
+
+Misc. tools (as of 11/11/2018):
+- Generate a Force/Moment interaction diagram for a doubly-reinforced reinforced concrete section (Jupyter Notebook)
