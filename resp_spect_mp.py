@@ -15,6 +15,23 @@ from itertools import accumulate
 import matplotlib.pyplot as plt
 
 
+def test_func(k,k2):
+    func = lambda x: x*x
+    return [os.getpid(),1.5031,k,k2,func(k)]          
+
+def loop(n):
+    s = 0
+    for i in range(int(n)):
+        s+=n
+    return [os.getpid(),s]    
+
+def loop_pr(n,send_end):
+    s = 0
+    for i in range(int(n)):
+        s+=n
+    send_end.send([os.getpid(),s])
+    send_end.close()
+
 def step_resp_single(wn,frq_mult,dt_max,time_a,acc,zeta):
         nyq = max(frq_mult*wn/2/np.pi,20)
         dt = max(1/(2*nyq),dt_max)
@@ -96,6 +113,7 @@ def step_resp_spect_mpl(acc,time_a,zeta=0.05,ext=True,plot=False,max_nyq=500,acc
     # Calculate response for a spring with each wn
     args = (frq_mult,dt_max,time_a,acc,zeta)
     with Pool(ncpu) as p:
+#        rs = p.starmap_async(step_resp_single,[(wn,*args) for wn in w],chunksize=1).get()
         rs = p.starmap(step_resp_single,[(wn,*args) for wn in w],chunksize=chunksize)
     
     t1 = timer.clock()
