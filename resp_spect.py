@@ -17,10 +17,39 @@ from scipy.optimize import curve_fit, minimize
 
 # %% Response Spectrum Generation
 
-def get_step_matrix(w, zeta=0.05, dt=0.005):
+def get_step_matrix(w, zeta, dt):
     '''
-    For use with the step_resp_spect() function that generates
-    response spectra in the step-by-step method.
+    Calculate the A, B matrices from [1] based on the input
+    angular frequency `w`, critical damping ratio, `zeta`,
+    and timestep, `dt`.
+
+    For use with the `step_resp_spect` function that generates
+    response spectra by the step-by-step method.
+
+    Parameters
+    ----------
+    w : float
+        Angular frequency in rads/s.
+
+    zeta : float
+        Critical damping ratio (dimensionless).
+
+    dt : float
+        Timestep in s.
+
+    Returns
+    -------
+    A : (2,2) ndarray
+        Array to be matrix-multiplied by the [x_i, xdot_i] vector.
+
+    B : (2,2) ndarray
+        Array to be matrix-multiplied by the [a_i, a_(i+1)] vector.
+
+    References
+    ----------
+    .. [1] Nigam, Jennings, April 1969. Calculation of response Sepctra
+        from Stong-Motion Earthquake Records. Bulletin of the Seismological
+        Society of America. Vol 59, no. 2.
     '''
 
     A = np.zeros((2, 2))
@@ -41,141 +70,248 @@ def get_step_matrix(w, zeta=0.05, dt=0.005):
 
     B[0, 0] = exp*(sin/(w*zsqt)*(t1 + zeta/w) + cos*(t2 + 1/w**2)) - t2
     B[0, 1] = -exp*(sin/(w*zsqt)*t1 + cos*t2) - 1/w**2 + t2
-    B[1, 0] = exp*((t1 + zeta/w)*(cos - sin*zeta/zsqt) - (t2 + 1/w**2)*(sin*w*zsqt + cos*zeta*w)) + 1/w**2/dt
-    B[1, 1] = -exp*(t1*(cos - sin*zeta/zsqt) - t2*(sin*w*zsqt + cos*zeta*w)) - 1/w**2/dt
+    B[1, 0] = exp*((t1 + zeta/w)*(cos - sin*zeta/zsqt)
+             - (t2 + 1/w**2)*(sin*w*zsqt + cos*zeta*w)) + 1/w**2/dt
+    B[1, 1] = -exp*(t1*(cos - sin*zeta/zsqt)
+             - t2*(sin*w*zsqt + cos*zeta*w)) - 1/w**2/dt
 
     return A, B
 
 
-def step_resp_spect(acc,time_a,zeta=0.05,ext=True,plot=False,max_nyq=500,accuracy = 0.2):
+def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
+                    plot=False, max_nyq=500, accuracy=0.2):
     '''
-    Only accurate up till 200Hz or so - for more accuracy must manually change the interpolation step/nyquist
-    freq.
-    Input: acceleration array, time array of same length of acc., critical damping ratio in
-    decimal, ext = boolean (if true, frequencies between 100Hz and 1000Hz are also included), plot = present
-    or not, accuracy = between 0, and 1 (1 = most accurate, but slow, 0 = less accurate but fast)
-    Output: array with response in g's, array with frequencies (in Hz)
-    Also prints time taken, and displays output spectrum
+    Generate acceleration response spectrum by the step-by-step method [1].
 
-    Adaptation of method described in "Calculation of response Sepctra from mMStong-Motion Earthquake Records"
-    Nigam, Jennings, Bulletin of the Seismological Society of America vol 59, no. 2, April 1969.
+    Output frequencies are loglinearly spaced as follows:
+        - [0.1Hz, 1Hz] : 12 points
+        - [1Hz, 10Hz] : 50 points
+        - [10Hz, 100Hz] : 25 points
+        - [100Hz, 1000Hz] : 15 points (only if `ext` is True)
 
+    Parameters
+    ----------
+    acc : 1D array_like
+        Input acceleration time history (assumed to be in g's).
+
+    time_a : 1D array_like
+        Input time values for the acceleration time history, `acc`.
+
+    zeta : float, optional
+        Critical damping ratio (dimensionless). Defaults to 0.05.
+
+    ext : bool, optional
+        Defines whether the RS is calculated to 100Hz or 1000Hz. Defaults
+        to True.
+            - ext = True : Frequency range is [0.1Hz, 1000Hz]
+            - ext = False : Frequency range is [0.1Hz - 100Hz]
+
+    plot : bool, optional
+        Defines if the RS is plotted or not. Defaults to False.
+            - plot = True : the RS is plotted.
+            - plot = False : the RS is not plotted.
+
+    max_nyq : numeric, optional
+        Controls the the minimum timestep used for RS generation.
+        Frequency content approx. under `max_nyq/2.5` will be
+        accurately captured. Defaults to 500Hz. The value must
+        be increased if there is significant frequency content above
+        200Hz.
+
+    accuracy : float between  0 and 1, optional
+        Parameter that defines the trade-off between speed and accuracy. To
+        improve speed, the algorithm resamples the input TH at lower
+        frequencies when calculated lower frequency response. This can
+        sometimes cause marginal deviations in the response when accuracy = 0.
+        There are no deviations when accuracy = 1. Defaults to 0.2.
+
+    Returns
+    -------
+    rs : 1D ndarray
+        Array with spectral accelerations (same units as input acc).
+
+    frq : 1D ndarray
+        Array with frequencies in Hz.
+
+    References
+    ----------
+    .. [1] Nigam, Jennings, April 1969. Calculation of response Sepctra
+        from Stong-Motion Earthquake Records. Bulletin of the Seismological
+        Society of America. Vol 59, no. 2.
     '''
 
     t0 = timer.clock()
 
     # Set up speed vs accuracy variable:
     try:
-        accuracy = max(min(1,accuracy),0)
+        accuracy = max(min(1, accuracy), 0)
         frq_mult = 5 + 10*accuracy
-    except:
+    except Exception:
         frq_mult = 7
 
     # Set up list of frequencies on which to calculate response spectra:
-    frq = np.logspace(-1,0,num=12,endpoint=False)
-    frq = np.append(frq,np.logspace(0,1,num=50,endpoint=False))
+    frq = np.logspace(-1, 0, num=12, endpoint=False)
+    frq = np.append(frq, np.logspace(0, 1, num=50, endpoint=False))
     if ext:
-        frq = np.append(frq,np.logspace(1,2,num=25,endpoint=False))
-        frq = np.append(frq,np.logspace(2,3,num = 15,endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=False))
+        frq = np.append(frq, np.logspace(2, 3, num=15, endpoint=True))
     else:
-        frq = np.append(frq,np.logspace(1,2,num=25,endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=True))
 
+    # Instantiate angular frequency and spectral acceleration arrays
     w = frq*2*np.pi
     rs = 0*w
 
+    # Define minimum timestep based on nyquist frequency input
     dt_max = 1/(2*max_nyq)
 
-    func = lambda x,a : np.dot(A,x) + np.dot(B,a)
+    # Define utility function to be used with itertools.accumulate
+    def func(x, a):
+        return np.dot(A, x) + np.dot(B, a)
 
     # Calculate response for a spring with each wn
-    for k,wn in enumerate(w):
-        # Interpolate time/acceleration vector to reduce total number of calculations
-        nyq = max(frq_mult*frq[k],20)
-        dt = max(1/(2*nyq),dt_max)
-        dt_tm = np.arange(0,time_a[-1],dt)
-        dt_acc = np.interp(dt_tm,time_a,acc)
+    for k, wn in enumerate(w):
+        # Interpolate time/acceleration vector to reduce total
+        # number of calculations
+        nyq = max(frq_mult*frq[k], 20)
+        dt = max(1/(2*nyq), dt_max)
+        dt_tm = np.arange(0, time_a[-1], dt)
+        dt_acc = np.interp(dt_tm, time_a, acc)
 
         # Calculate response acceleration time history
-        A,B = get_step_matrix(wn,zeta,dt)
-        act = np.column_stack((dt_acc[:-1],dt_acc[1:]))
-        act = np.append(np.array([[0,0],[0,dt_acc[0]]]),act,axis=0)
-        x = np.array(list(accumulate(act,func)))
-        temp = -np.array([wn**2,2*zeta*wn])
-        z = np.dot(x,temp)
+        A, B = get_step_matrix(wn, zeta, dt)
+        act = np.column_stack((dt_acc[:-1], dt_acc[1:]))
+        act = np.append(np.array([[0, 0], [0, dt_acc[0]]]),
+                        act,
+                        axis=0)
+        x = np.array(list(accumulate(act, func)))
+        temp = -np.array([wn**2, 2*zeta*wn])
+        z = np.dot(x, temp)
         rs[k] = np.max(np.absolute(z))
 
     t1 = timer.clock()
     t_net = t1 - t0
 
-    print("RS done. Time taken = ", t_net, "\ntime per iteration = ", t_net/len(w))
+    print("RS done. Time taken = ", t_net, "\ntime per iteration = ",
+          t_net/len(w))
 
+    # Plot RS if required
     if plot:
-        plt.semilogx(frq,rs,'.-b')
-        plt.grid(b=True,which = 'both', axis = 'both', alpha = 0.5)
+        plt.semilogx(frq, rs, '.-b')
+        plt.grid(b=True, which='both', axis='both', alpha=0.5)
         plt.title("Response Spectrum")
         plt.xlabel("Frequency/Hz")
         plt.ylabel("Acceleration/g's")
-        k = "%s, %s" %(round(frq[-1]),round(rs[-1],2))
-        plt.annotate(k,xy=(frq[-1],rs[-1]),)
+        k = "%s, %s" % (round(frq[-1]), round(rs[-1], 2))
+        plt.annotate(k, xy=(frq[-1], rs[-1]),)
         plt.show()
 
     return rs, frq
 
 
-def fft_resp_spect(acc,time_a,zeta=0.05,ext=True,plot=False,max_nyq=500,accuracy = 0.2):
+def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
+                   plot=False, max_nyq=500, accuracy=0.2):
     '''
-    Only accurate up till 200Hz or so - for more accuracy must manually change the interpolation step/nyquist
-    freq.
-    Input: acceleration array, time array of same length of acc., critical damping ratio in
-    decimal, ext = boolean (if true, frequencies between 100Hz and 1000Hz are also included), plot = present
-    or not, accuracy = between 0, and 1 (1 = most accurate, but slow, 0 = less accurate but faster)
-    Output: array with response in g's, array with frequencies (in Hz)
-    Also prints time taken, and displays output spectrum
+    Generate acceleration response spectrum using a frequency domain
+    method.
 
+    Output frequencies are loglinearly spaced as follows:
+        - [0.1Hz, 1Hz] : 12 points
+        - [1Hz, 10Hz] : 50 points
+        - [10Hz, 100Hz] : 25 points
+        - [100Hz, 1000Hz] : 15 points (only if `ext` is True)
+
+    Parameters
+    ----------
+    acc : 1D array_like
+        Input acceleration time history (assumed to be in g's).
+
+    time_a : 1D array_like
+        Input time values for the acceleration time history, `acc`.
+
+    zeta : float, optional
+        Critical damping ratio (dimensionless). Defaults to 0.05.
+
+    ext : bool, optional
+        Defines whether the RS is calculated to 100Hz or 1000Hz. Defaults
+        to True.
+            - ext = True : Frequency range is [0.1Hz, 1000Hz]
+            - ext = False : Frequency range is [0.1Hz - 100Hz]
+
+    plot : bool, optional
+        Defines if the RS is plotted or not. Defaults to False.
+            - plot = True : the RS is plotted.
+            - plot = False : the RS is not plotted.
+
+    max_nyq : numeric, optional
+        Controls the the minimum timestep used for RS generation.
+        Frequency content approx. under `max_nyq/2.5` will be
+        accurately captured. Defaults to 500Hz. The value must
+        be increased if there is significant frequency content above
+        200Hz.
+
+    accuracy : float between  0 and 1, optional
+        Parameter that defines the trade-off between speed and accuracy. To
+        improve speed, the algorithm resamples the input TH at lower
+        frequencies when calculated lower frequency response. This can
+        sometimes cause marginal deviations in the response when accuracy = 0.
+        There are no deviations when accuracy = 1. Defaults to 0.2.
+
+    Returns
+    -------
+    rs : 1D ndarray
+        Array with spectral accelerations (same units as input acc).
+
+    frq : 1D ndarray
+        Array with frequencies in Hz.
     '''
 
     t0 = timer.clock()
 
     # Set up speed vs accuracy variable:
     try:
-        accuracy = max(min(1,accuracy),0)
+        accuracy = max(min(1, accuracy), 0)
         frq_mult = 5 + 10*accuracy
-    except:
+    except Exception:
         frq_mult = 7
 
     # Set up list of frequencies on which to calculate response spectra:
-    frq = np.logspace(-1,0,num=12,endpoint=False)
-    frq = np.append(frq,np.logspace(0,1,num=50,endpoint=False))
+    frq = np.logspace(-1, 0, num=12, endpoint=False)
+    frq = np.append(frq, np.logspace(0, 1, num=50, endpoint=False))
     if ext:
-        frq = np.append(frq,np.logspace(1,2,num=25,endpoint=False))
-        frq = np.append(frq,np.logspace(2,3,num = 15,endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=False))
+        frq = np.append(frq, np.logspace(2, 3, num=15, endpoint=True))
     else:
-        frq = np.append(frq,np.logspace(1,2,num=25,endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=True))
 
+    # Instantiate angular frequency and spectral acceleration arrays
     w = frq*2*np.pi
     rs = 0*w
 
+    # Define minimum timestep based on nyquist frequency input
     dt_max = 1/(2*max_nyq)
 
     # Calculate response for a spring with each wn
-    for k,wn in enumerate(w):
-        # Interpolate time/acceleration vector to reduce total number of calculations
-        nyq = max(frq_mult*frq[k],20)
-        dt = max(1/(2*nyq),dt_max)
-        dt_tm = np.arange(0,time_a[-1],dt)
-        dt_acc = np.interp(dt_tm,time_a,acc)
+    for k, wn in enumerate(w):
+        # Interpolate time/acceleration vector to reduce
+        # total number of calculations
+        nyq = max(frq_mult*frq[k], 20)
+        dt = max(1/(2*nyq), dt_max)
+        dt_tm = np.arange(0, time_a[-1], dt)
+        dt_acc = np.interp(dt_tm, time_a, acc)
 
-        # Calculate n, the integer to determine 0 padding at the end of the time history;
-        # making n a power of 2 improves the efficiency of the fft algorithm
+        # Calculate n, the integer to determine 0 padding at the end
+        # of the time history; making n a power of 2 improves the
+        # efficiency of the fft algorithm
         n = int(2**(np.ceil(np.log(1.5*len(dt_acc))/np.log(2))))
 
         # Solve for acceleration response
-        xgfft = np.fft.rfft(dt_acc,n)
-        frqt = np.fft.rfftfreq(n, d = dt_tm[-1]/len(dt_tm))
+        xgfft = np.fft.rfft(dt_acc, n)
+        frqt = np.fft.rfftfreq(n, d=dt_tm[-1]/len(dt_tm))
         xfft = 0*xgfft
         accfft = 0*xgfft
 
-        for i,f in enumerate(frqt):
+        for i, f in enumerate(frqt):
             wf = f*2*np.pi
             xfft[i] = -xgfft[i]/(-wf**2 + 2*zeta*wn*1j*wf + wn**2)
             accfft[i] = -xfft[i]*wf**2
@@ -187,16 +323,18 @@ def fft_resp_spect(acc,time_a,zeta=0.05,ext=True,plot=False,max_nyq=500,accuracy
     t1 = timer.clock()
     t_net = t1 - t0
 
-    print("RS done. Time taken = ", t_net, "\ntime per iteration = ", t_net/len(w))
+    print("RS done. Time taken = ", t_net,
+          "\ntime per iteration = ", t_net/len(w))
 
+    # Plot RS if required
     if plot:
-        plt.semilogx(frq,rs,'.-b')
-        plt.grid(b=True,which = 'both', axis = 'both', alpha = 0.5)
+        plt.semilogx(frq, rs, '.-b')
+        plt.grid(b=True, which='both', axis='both', alpha=0.5)
         plt.title("Response Spectrum")
         plt.xlabel("Frequency/Hz")
         plt.ylabel("Acceleration/g's")
-        k = "%s, %s" %(round(frq[-1]),round(rs[-1],2))
-        plt.annotate(k,xy=(frq[-1],rs[-1]),)
+        k = "%s, %s" % (round(frq[-1]), round(rs[-1], 2))
+        plt.annotate(k, xy=(frq[-1], rs[-1]),)
         plt.show()
 
     return rs, frq
@@ -206,25 +344,25 @@ def fft_resp_spect(acc,time_a,zeta=0.05,ext=True,plot=False,max_nyq=500,accuracy
 
 
 def simple_broadband(frq, rs, npts=8, ratio=0.15, window=8, amp=1.02):
-    """Generate a simplified and broadbanded response spectrum
+    """
+    Generate a simplified and broadbanded response spectrum
     from a given response spectrum (RS).
 
     Simple algorithm that attempts to curve-fit a piecewise loglinear
     function with N=npts points to a broadbanded version of the inputs RS.
 
-    This function has been superceded by 'optimal_broadband' and
-    'iter_optimal_broadband' which are more robust algorithms
+    This function has been superceded by `optimal_broadband` and
+    `iter_optimal_broadband` which are more robust algorithms
     with more features.
 
     Parameters
     ----------
-
     frq : 1D list/tuple/ndarray
         Frequencies of input response spectrum to be broadbanded.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration values of input response spectrum
-        to be broadbanded. Object should have the same length as frq.
+        to be broadbanded. Object should have the same length as `frq`.
 
     npts : int, optional
         Positive integer >= 2 that specifies the number of points the
@@ -232,11 +370,11 @@ def simple_broadband(frq, rs, npts=8, ratio=0.15, window=8, amp=1.02):
 
     ratio : float, optional
         Parameter that defines the broadbanding. The input response spectrum
-        is shifted by +- ratio. The frequencies in the input RS are multiplied
-        by (1+ratio) and (1-ratio). The final simplified, broad-banded
-        RS is generated to bound the inputs RS and shifted input RSs.
-        The ratio parameter therefore determines how wide the final RS peaks
-        should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
+        is shifted by +- `ratio`. The frequencies in the input RS are
+        multiplied by (1+`ratio`) and (1-`ratio`). The final simplified,
+        broad-banded RS is generated to bound the inputs RS and shifted input
+        RSs. The ratio parameter therefore determines how wide the final
+        RS peaks should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
 
     window : int, optional
         Parameter that defines the window of rolling_max and rolling_mean used
@@ -256,7 +394,6 @@ def simple_broadband(frq, rs, npts=8, ratio=0.15, window=8, amp=1.02):
 
     Returns
     ----------
-
     fit_frq : ndarray of float
         Frequency values of the final simplified and broadbanded RS
 
@@ -281,7 +418,8 @@ def simple_broadband(frq, rs, npts=8, ratio=0.15, window=8, amp=1.02):
 
 def optimal_broadband(frq, rs, npts=8, ratio=0.15,
                       f_pts=None, offset=0, iprint=1):
-    """Generate a simplified and broadbanded response spectrum
+    """
+    Generate a simplified and broadbanded response spectrum
     from a given response spectrum (RS).
 
     Parameters
@@ -290,9 +428,9 @@ def optimal_broadband(frq, rs, npts=8, ratio=0.15,
     frq : 1D list/tuple/ndarray
         Frequencies of input response spectrum to be broadbanded.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration values of input response spectrum
-        to be broadbanded. Object should have the same length as frq.
+        to be broadbanded. Object should have the same length as `frq`.
 
     npts : int, optional
         Positive integer >= 2 that specifies the number of points the
@@ -300,11 +438,11 @@ def optimal_broadband(frq, rs, npts=8, ratio=0.15,
 
     ratio : float, optional
         Parameter that defines the broadbanding. The input response spectrum
-        is shifted by +- ratio. The frequencies in the input RS are multiplied
-        by (1+ratio) and (1-ratio). The final simplified, broad-banded
-        RS is generated to bound the inputs RS and shifted input RSs.
-        The ratio parameter therefore determines how wide the final RS peaks
-        should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
+        is shifted by +- `ratio`. The frequencies in the input RS are
+        multiplied by (1+`ratio`) and (1-`ratio`). The final simplified,
+        broad-banded RS is generated to bound the inputs RS and shifted input
+        RSs. The ratio parameter therefore determines how wide the final
+        RS peaks should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
 
     f_pts : 1D list/tuple/ndarry, optional
         If provided, f_pts defines the list of initial input frequncies and
@@ -412,18 +550,19 @@ def optimal_broadband(frq, rs, npts=8, ratio=0.15,
 def iter_optimal_broadband(frq, rs, init_npts=8, maxiter=5,
                            ratio=0.15, offset=0, lambda_reg=0.02,
                            iprint=0):
-    """Generate a simplified and broadbanded response spectrum
+    """
+    Generate a simplified and broadbanded response spectrum
     from a given response spectrum (RS). Uses an iterative approach
     with a regularization error parameter that leads to better fitting
-    results than 'optimal_broadband(...)' with fewer unneeded points.
+    results than `optimal_broadband(...)` with fewer unneeded points.
 
     The iterative optimal broadband function finds a simplified RS for
     the input RS with an initial number of points. The function then
     searches for a new optimum RS by adding a frequency point in the region
     with the highest deviation (error) from the input RS. The step is
-    reperformed for 'maxiter' iterations. The 'best' final simplified RS
+    reperformed for `maxiter` iterations. The 'best' final simplified RS
     is chosen by comparing all the performed iterations. A regularization
-    parameter 'lambda_reg' is used to penalize a higher number of input
+    parameter `lambda_reg` is used to penalize a higher number of input
     points.
 
     Parameters
@@ -432,9 +571,9 @@ def iter_optimal_broadband(frq, rs, init_npts=8, maxiter=5,
     frq : 1D list/tuple/ndarray
         Frequencies of input response spectrum to be broadbanded.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration values of input response spectrum
-        to be broadbanded. Object should have the same length as frq.
+        to be broadbanded. Object should have the same length as `frq`.
 
    init_npts : int, optional
         Positive integer >= 2 that specifies the minimum number of points
@@ -446,11 +585,11 @@ def iter_optimal_broadband(frq, rs, init_npts=8, maxiter=5,
 
     ratio : float, optional
         Parameter that defines the broadbanding. The input response spectrum
-        is shifted by +- ratio. The frequencies in the input RS are multiplied
-        by (1+ratio) and (1-ratio). The final simplified, broad-banded
-        RS is generated to bound the inputs RS and shifted input RSs.
-        The ratio parameter therefore determines how wide the final RS peaks
-        should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
+        is shifted by +- `ratio`. The frequencies in the input RS are
+        multiplied by (1+`ratio`) and (1-`ratio`). The final simplified,
+        broad-banded RS is generated to bound the inputs RS and shifted input
+        RSs. The ratio parameter therefore determines how wide the final
+        RS peaks should be. Defaults to 0.15 per ASCE 4-98 or Reg. Guide 1.122.
 
     offset : float, optional
         An offset value in the same units as the spectral acceleration (rs).
@@ -567,8 +706,9 @@ def iter_optimal_broadband(frq, rs, init_npts=8, maxiter=5,
 
 
 def broadband(frq, rs, ratio=0.15):
-    """Broadband the input RS by shifting the frequencies
-    by +- ratio and +- ratio/2. Concatenate and sort the final five
+    """
+    Broadband the input RS by shifting the frequencies
+    by +- `ratio` and +- `ratio/2`. Concatenate and sort the final five
     RSs, then return the result. The final result looks like a
     broadened noisy version of the initial RS.
 
@@ -577,13 +717,13 @@ def broadband(frq, rs, ratio=0.15):
     frq : 1D list/tuple/ndarray
         Frequencies of input response spectrum to be broadbanded.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration values of input response spectrum
-        to be broadbanded. Object should have the same length as frq.
+        to be broadbanded. Object should have the same length as `frq`.
 
     ratio : float, optional
         Parameter that defines the broadbanding. The input response spectrum
-        is shifted by +- ratio. The ratio parameter determines how wide the
+        is shifted by +- `ratio`. The ratio parameter determines how wide the
         final RS peaks should be. Defaults to 0.15 per ASCE 4-98 or
         Reg. Guide 1.122.
 
@@ -613,7 +753,8 @@ def broadband(frq, rs, ratio=0.15):
 
 
 def rolling_max(frq, rs, window=8):
-    """Return the rolling maximum of the spectral
+    """
+    Return the rolling maximum of the spectral
     acceleration (rs) based on the specified window.
     The window is centered at each frequency (x-value).
 
@@ -622,7 +763,7 @@ def rolling_max(frq, rs, window=8):
     frq : 1D list/tuple/ndarray
         Frequencies (x-values) of input.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration (y-values) of input.
         Object should have the same length as frq.
 
@@ -653,7 +794,8 @@ def rolling_max(frq, rs, window=8):
 
 
 def rolling_mean(frq, rs, window=8):
-    """Return the rolling mean of the spectral
+    """
+    Return the rolling mean of the spectral
     acceleration (rs) based on the specified window.
     The window is centered at each frequency (x-value).
 
@@ -662,7 +804,7 @@ def rolling_mean(frq, rs, window=8):
     frq : 1D list/tuple/ndarray
         Frequencies (x-values) of input.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration (y-values) of input.
         Object should have the same length as frq.
 
@@ -693,7 +835,8 @@ def rolling_mean(frq, rs, window=8):
 
 
 def broadband_step(frq, rs, ratio=0.15, window=8):
-    """Apply the rolling_max and broadband functions to the input
+    """
+    Apply the rolling_max and broadband functions to the input
     frq and rs. Returns the resulting frq and rs.
     """
     bb_frq, bb_rs = broadband(frq, rs, ratio=ratio)
@@ -703,7 +846,8 @@ def broadband_step(frq, rs, ratio=0.15, window=8):
 
 
 def broadband_smooth(frq, rs, ratio=0.15, window=8, amp=1.02):
-    """Get a smoothened, broadbanded version of the input RS.
+    """
+    Get a smoothened, broadbanded version of the input RS.
     Applies the broadband_step and rolling_mean functions to the RS.
     Returns the resulting frq and rs.
 
@@ -712,7 +856,7 @@ def broadband_smooth(frq, rs, ratio=0.15, window=8, amp=1.02):
     frq : 1D list/tuple/ndarray
         Frequencies of input.
 
-    rs: 1D list/tuple/ndarray
+    rs : 1D list/tuple/ndarray
         Spectral acceleration of input.
         Object should have the same length as frq.
 
@@ -751,7 +895,8 @@ def broadband_smooth(frq, rs, ratio=0.15, window=8, amp=1.02):
 
 
 def piecewise_logxlinear(x, *params):
-    """Transform the input frequency, x, into a spectral
+    """
+    Transform the input frequency, x, into a spectral
     acceleration by interpolating between the RS defined by
     params. The interpolation is loglinear on the frequency
     axis, and linear in the spectral acceleration axis.
@@ -761,11 +906,11 @@ def piecewise_logxlinear(x, *params):
 
     Parameters
     ----------
-    x: array_like
+    x : array_like
         A point or list of points to evaluate the piecewise loglinear
         function.
 
-    params: Variable length argument list
+    params : Variable length argument list
         Defines the input RS to be interpolated. The input should
         list the frequencies of all points, followed by the spectral
         accelerations. Eg:
@@ -790,7 +935,8 @@ def piecewise_logxlinear(x, *params):
 
 
 def distance_btw_pts(params):
-    """Find the distance between points in a RS where
+    """
+    Find the distance between points in a RS where
     the x-axis is on a log-scale and the y-axis is on
     a regular linear-scale.
 
@@ -820,7 +966,8 @@ def distance_btw_pts(params):
 
 
 def gradient_btw_pts(params):
-    """Find the gradient between points in a RS where
+    """
+    Find the gradient between points in a RS where
     the x-axis is on a log-scale and the y-axis is on
     a regular linear-scale. The x and y values are
     normalized between 0 and 1 prior to the gradient
@@ -851,9 +998,10 @@ def gradient_btw_pts(params):
 
 
 def error_func(params, frq, rs):
-    """Calculate the square root, sum of the squares (SRSS)
-    error between a piecewise loglinear RS defined  by
-    params, and a target RS defined by frq and rs.
+    """
+    Calculate the square root, sum of the squares (SRSS)
+    error between a piecewise loglinear RS defined by
+    params and a target RS defined by frq and rs.
 
     Parameters
     ----------
@@ -884,7 +1032,8 @@ def error_func(params, frq, rs):
 
 
 def get_init_fpts(regional_npts):
-    """Convert a list/tuple of 4 integers to an ndarray of frequenices.
+    """
+    Convert a list/tuple of 4 integers to an ndarray of frequenices.
     The 4 numbers define the number of points between 0.1Hz-1Hz, 1Hz-10Hz,
     10Hz-100Hz, and 100Hz-1000Hz.
 
