@@ -26,7 +26,13 @@ class TestRC(unittest.TestCase):
         """
         self.width = 200
         self.thk = 1750
-        self.rc = RcSection(self.width, self.thk)
+        self.fc=40
+        inputs = {
+            'width': self.width,
+            'thk': self.thk,
+            'fc': self.fc,
+            }
+        self.rc = RcSection(**inputs)
         self.rebar_od = 32
         self.cover = 165
         self.rebar_pos_y = self.thk - self.cover - self.rebar_od/2
@@ -52,7 +58,15 @@ class TestRC(unittest.TestCase):
         self.assertNotEqual(fig.get_axes(), [])
         self.assertEqual(len(axis.patches), len(self.rc.rebars)+1)
 
-#    def test_rebar(self):
+    def test_mat_props(self):
+        """Test material property input.
+        """
+        mat_props = self.rc.get_mat_props()
+        self.assertIsInstance(mat_props, dict)
+        self.assertEqual(mat_props['concrete']['fc'], self.fc)
+        self.assertEqual(mat_props['rebar0']['Es'], 2000)
+
+
 
 # %% Testcases for resp_spect.py
 
@@ -66,4 +80,4 @@ class TestBroadbanding(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
