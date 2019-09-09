@@ -11,7 +11,12 @@ Script for testing other scripts in the module.
 
 import unittest
 from unittest.mock import patch
+import numpy as np
 from rc import RcSection
+
+# %% Global variables
+
+steel_sy = 500
 
 # %% Testcases for rc.py
 
@@ -35,8 +40,10 @@ class TestRC(unittest.TestCase):
         self.rc = RcSection(**inputs)
         self.rebar_od = 32
         self.cover = 165
-        self.rebar_pos_y = self.thk - self.cover - self.rebar_od/2
-        self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y)
+        self.rebar_pos_y1 = self.thk - self.cover - self.rebar_od/2
+        self.rebar_pos_y2 = self.cover + self.rebar_od / 2
+        self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y1)
+        self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y2)
 
     def test_simple(self):
         """Test instantiation.
@@ -54,7 +61,7 @@ class TestRC(unittest.TestCase):
         """Test the plotting method of the RcSection class.
         """
         mock_show.return_value = None
-        fig, axis = self.rc.plot()
+        fig, axis = self.rc.plot_section()
         self.assertNotEqual(fig.get_axes(), [])
         self.assertEqual(len(axis.patches), len(self.rc.rebars)+1)
 
@@ -66,7 +73,12 @@ class TestRC(unittest.TestCase):
         self.assertEqual(mat_props['concrete']['fc'], self.fc)
         self.assertEqual(mat_props['rebar0']['Es'], 2000)
 
-
+    def test_max_tension(self):
+        id_df = self.rc.generate_interaction_diagram()
+        rebar_area = np.pi/4*self.rebar_od**2
+        max_tension = -2*steel_sy*rebar_area
+        self.assertEqual(max_tension, id_df['P'].iloc[-1])
+        self.assertEqual(0, id_df['M'].iloc[-1])
 
 # %% Testcases for resp_spect.py
 
