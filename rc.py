@@ -113,11 +113,25 @@ class RcSection(object):
 
     def generate_interaction_diagram(self, npts=50):
         max_tension = -np.sum(self.rebars['area']*self.rebars['sy'])
-        max_conc_compression = (0.85*self.thk*self.width -
-                                np.sum(self.rebars['area']))*\
-                               self.conc_matprops['fc']
 
-        pass
+        compr_rebars = self.rebars[self.rebars['compression']]
+
+        max_conc_compression = (0.85*self.thk*self.width -
+                                np.sum(self.rebars['area']))* \
+                               self.conc_matprops['fc'] + \
+                               np.sum(compr_rebars['area']*compr_rebars['sy'])
+
+        ety = -self.rebars['e_y'].max()
+        efc = self.conc_matprops['e_fc']
+
+        self.id.loc[0] = [max_conc_compression, 0,
+                          efc, efc,
+                          ]
+        self.id.loc[npts] = [max_tension, 0,
+                          ety, ety,
+                          ]
+
+        return self.id
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs

@@ -43,7 +43,8 @@ class TestRC(unittest.TestCase):
         self.rebar_pos_y1 = self.thk - self.cover - self.rebar_od/2
         self.rebar_pos_y2 = self.cover + self.rebar_od / 2
         self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y1)
-        self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y2)
+        self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y2,
+                          compression=True)
 
     def test_simple(self):
         """Test instantiation.
@@ -77,6 +78,15 @@ class TestRC(unittest.TestCase):
         id_df = self.rc.generate_interaction_diagram()
         rebar_area = np.pi/4*self.rebar_od**2
         max_tension = -2*steel_sy*rebar_area
+        print(id_df)
+        self.assertEqual(max_tension, id_df['P'].iloc[-1])
+        self.assertEqual(0, id_df['M'].iloc[-1])
+
+    def test_max_compression(self):
+        id_df = self.rc.generate_interaction_diagram()
+        rebar_area = np.pi/4*self.rebar_od**2
+        max_compression = -2*steel_sy*rebar_area
+        print(id_df)
         self.assertEqual(max_tension, id_df['P'].iloc[-1])
         self.assertEqual(0, id_df['M'].iloc[-1])
 
