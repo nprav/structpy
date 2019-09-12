@@ -15,8 +15,8 @@ import numpy as np
 from rc import RcSection
 
 # %% Global variables
-
 steel_sy = 500
+steel_Es = 20000
 
 # %% Testcases for rc.py
 
@@ -31,7 +31,7 @@ class TestRC(unittest.TestCase):
         """
         self.width = 200
         self.thk = 1750
-        self.fc=40
+        self.fc = 40
         inputs = {
             'width': self.width,
             'thk': self.thk,
@@ -89,6 +89,25 @@ class TestRC(unittest.TestCase):
         print(id_df)
         self.assertEqual(max_tension, id_df['P'].iloc[-1])
         self.assertEqual(0, id_df['M'].iloc[-1])
+
+    def test_get_P(self):
+        rebar_area = np.pi / 4 * self.rebar_od ** 2
+        max_compression = (self.width*self.thk - 2*rebar_area)*0.85*self.fc + \
+            rebar_area * steel_sy
+        max_tension = -2 * rebar_area * steel_sy
+        test_etop = -0.005
+        test_ebot = 0.003
+        a = -0.003 / (test_etop - test_ebot) * self.thk
+        test_e_rebar = test_ebot + \
+            self.rebar_pos_y1 / self.thk * (test_etop - test_ebot)
+        test_P = 0.85*a*self.fc + test_e_rebar * steel_Es
+        test_cases = [(0.003, 0.003, max_compression),
+                      (-0.003, -0.003, max_tension),
+                      (test_etop, test_ebot, test_P),
+                      ]
+        for etop, ebot, P in test_cases:
+            self.assertEqual(P, self.rc.get_P(etop, ebot))
+
 
 # %% Testcases for resp_spect.py
 
