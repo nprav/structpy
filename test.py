@@ -31,7 +31,7 @@ class TestRC(unittest.TestCase):
         """
         self.width = 200
         self.thk = 1750
-        self.fc=40
+        self.fc = 40
         inputs = {
             'width': self.width,
             'thk': self.thk,
@@ -85,10 +85,11 @@ class TestRC(unittest.TestCase):
     def test_max_compression(self):
         id_df = self.rc.generate_interaction_diagram()
         rebar_area = np.pi/4*self.rebar_od**2
-        max_compression = -2*steel_sy*rebar_area
+        max_compression = steel_sy*rebar_area + \
+                          0.85*self.fc*(self.width*self.thk - 2*rebar_area)
         print(id_df)
-        self.assertEqual(max_tension, id_df['P'].iloc[-1])
-        self.assertEqual(0, id_df['M'].iloc[-1])
+        self.assertEqual(max_compression, id_df['P'].iloc[0])
+        self.assertEqual(0, id_df['M'].iloc[0])
 
 # %% Testcases for resp_spect.py
 

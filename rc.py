@@ -8,7 +8,6 @@ Module for analyzing Reingforced Concrete sections. Primary aim
 is to make interaction diagrams.
 """
 
-
 # %% Import Necessary Modules
 import numpy as np
 import pandas as pd
@@ -22,7 +21,8 @@ default_materials = {
     'concrete': {'fc': 35, 'e_fc': 0.003},
     'Gr60': {'sy': 413.685, 'Es': 2000, 'compression': False},
     '500': {'sy': 500, 'Es': 2000, 'compression': False},
-    }
+}
+
 
 # %% Define overall section class
 
@@ -50,8 +50,8 @@ class RcSection(object):
     def get_extents(self):
         """Return the boundaries of the defined section.
         """
-        print("Section Size : ({}, {})".format(
-                self.width, self.thk))
+        print("Section Size : ({}, {})\n".format(
+            self.width, self.thk))
         return self.width, self.thk
 
     def add_rebar(self, D=10, x=0, y=175, sy=500,
@@ -59,17 +59,17 @@ class RcSection(object):
         """Add a single rebar to the section, defined by diameter,
         x position, and y position.
         """
-        area = np.pi/4*D**2
-        e_y = sy/Es
+        area = np.pi / 4 * D ** 2
+        e_y = sy / Es
         self.rebars.loc[self.num_rebars] = [x, y, D, area, sy,
                                             Es, e_y, compression,
                                             ]
         self.num_rebars = len(self.rebars)
         print(
-            "Rebar added; pos = ({}, {}), od = {}".format(
+            "Rebar added; pos = ({}, {}), od = {}\n".format(
                 *self.rebars.iloc[-1]
-                )
             )
+        )
 
     def get_mat_props(self):
         """Return material properties of concrete section and all
@@ -84,10 +84,11 @@ class RcSection(object):
             print(
                 "{}: ".format(mat) +
                 ", ".join([
-                    "{}={}".format(prop, value)
+                    "{} = {}".format(prop, value)
                     for prop, value
                     in props.items()
-                    ]))
+                ]))
+        print("\n")
 
         return mat_props
 
@@ -95,31 +96,31 @@ class RcSection(object):
         """Plot the defined section.
         """
         fig, axis = plt.subplots()
-        xy = (-self.width/2, 0)
+        xy = (-self.width / 2, 0)
         rectangle = plt.Rectangle(xy, self.width, self.thk,
                                   **RcSection.rectangle_kwargs)
         axis.add_patch(rectangle)
 
         for (x, y, D, *args) in self.rebars.values:
-            circle = plt.Circle((x, y), D/2, **RcSection.circle_kwargs)
+            circle = plt.Circle((x, y), D / 2, **RcSection.circle_kwargs)
             axis.add_patch(circle)
 
-        axis.set_xlim((-self.width/2*1.1, self.width/2*1.1))
-        axis.set_ylim((-self.thk/2*0.1, self.thk*1.05))
+        axis.set_xlim((-self.width / 2 * 1.1, self.width / 2 * 1.1))
+        axis.set_ylim((-self.thk / 2 * 0.1, self.thk * 1.05))
         plt.axis('equal')
         plt.show()
 
         return fig, axis
 
     def generate_interaction_diagram(self, npts=50):
-        max_tension = -np.sum(self.rebars['area']*self.rebars['sy'])
+        max_tension = -np.sum(self.rebars['area'] * self.rebars['sy'])
 
         compr_rebars = self.rebars[self.rebars['compression']]
 
-        max_conc_compression = (0.85*self.thk*self.width -
-                                np.sum(self.rebars['area']))* \
+        max_conc_compression = 0.85 * (self.thk * self.width -
+                                       np.sum(self.rebars['area'])) * \
                                self.conc_matprops['fc'] + \
-                               np.sum(compr_rebars['area']*compr_rebars['sy'])
+                               np.sum(compr_rebars['area'] * compr_rebars['sy'])
 
         ety = -self.rebars['e_y'].max()
         efc = self.conc_matprops['e_fc']
@@ -128,10 +129,11 @@ class RcSection(object):
                           efc, efc,
                           ]
         self.id.loc[npts] = [max_tension, 0,
-                          ety, ety,
-                          ]
+                             ety, ety,
+                             ]
 
         return self.id
+
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
@@ -156,4 +158,4 @@ class CustomBeam(RcSection):
 # %% Define miscellaneous utility functions
 
 def circle_area(diam):
-    return np.pi/4*diam**2
+    return np.pi / 4 * diam ** 2
