@@ -12,7 +12,7 @@ Script for testing other scripts in the module.
 import unittest
 from unittest.mock import patch
 import numpy as np
-from rc import RcSection
+from rc import RcSection, get_beta_1, rebar_force, conc_force
 
 # %% Global variables
 steel_sy = 500
@@ -96,19 +96,75 @@ class TestRC(unittest.TestCase):
         max_compression = (self.width*self.thk - 2*rebar_area)*0.85*self.fc + \
             rebar_area * steel_sy
         max_tension = -2 * rebar_area * steel_sy
-        test_etop = -0.005
-        test_ebot = 0.003
-        a = -0.003 / (test_etop - test_ebot) * self.thk
-        test_e_rebar = test_ebot + \
-            self.rebar_pos_y1 / self.thk * (test_etop - test_ebot)
-        test_P = 0.85*a*self.fc + test_e_rebar * steel_Es
+        test_e_top = -0.005
+        test_e_bot = 0.003
+        c = -0.003 / (test_e_top - test_e_bot) * self.thk
+        a = 0.85*c
+        test_e_rebar = test_e_bot + \
+            self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
+        test_P = a*self.fc + test_e_rebar * steel_Es
         test_cases = [(0.003, 0.003, max_compression),
                       (-0.003, -0.003, max_tension),
-                      (test_etop, test_ebot, test_P),
+                      (test_e_top, test_e_bot, test_P),
                       ]
-        for etop, ebot, P in test_cases:
-            self.assertEqual(P, self.rc.get_P(etop, ebot))
+        for e_top, e_bot, P in test_cases:
+            self.assertEqual(P, self.rc.get_P(e_top, e_bot))
 
+    def test_get_beta_1(self):
+        self.assertEqual(0.65, get_beta_1(100))
+        self.assertEqual(0.85, get_beta_1(10))
+        self.assertEqual(0.75, get_beta_1(42))
+
+    def test_rebar_force(self):
+        rebar = {'area': 10, 'y': 2, 'Es': 1,
+                 'sy': 0.7, 'e_y': 0.7, 'compression': False}
+        thk = 10
+        e_top = -1
+        e_bot = 0
+        test_f = rebar_force(rebar, thk, e_top, e_bot)
+        self.assertEqual(test_f, -2)
+
+        e_top = 1
+        e_bot = 0
+        test_f = rebar_force(rebar, thk, e_top, e_bot)
+        self.assertEqual(test_f, 0)
+
+        rebar['compression'] = True
+        test_f = rebar_force(rebar, thk, e_top, e_bot)
+        self.assertEqual(test_f, 2)
+
+    def test_conc_force(self):
+        thk = 10
+        width = 1
+        beta_1 = 1
+        e_top = 0.003
+        e_bot = 0.003
+        test_c, y_c = conc_force(thk, width, e_top, e_bot,
+                                 beta_1, fc=10, e_fc=0.003)
+        self.assertRaises(ZeroDivisionError)
+        self.assertEqual(85, test_c)
+        self.assertEqual(0, y_c)
+
+        e_top = 0
+        e_bot = -0.003
+        test_c, y_c = conc_force(thk, width, e_top, e_bot, beta_1,
+                                 fc=10, e_fc=0.003)
+        self.assertEqual(0, test_c)
+        self.assertEqual(0, y_c)
+
+        e_top = -0.003
+        e_bot = 0.003
+        test_c, y_c = conc_force(thk, width, e_top, e_bot, beta_1,
+                                 fc=10, e_fc=0.003)
+        self.assertEqual(test_c, 0.85 * 5 * 10)
+        self.assertEqual(y_c, -2.5)
+
+        e_top = 0.003
+        e_bot = -0.003
+        test_c, y_c = conc_force(thk, width, e_top, e_bot, beta_1,
+                                 fc=10, e_fc=0.003)
+        self.assertEqual(test_c, 0.85 * 5 * 10)
+        self.assertEqual(y_c, 5 - (5 / 2))
 
 # %% Testcases for resp_spect.py
 

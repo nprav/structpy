@@ -46,6 +46,7 @@ class RcSection(object):
         self.rebars = pd.DataFrame(columns=RcSection.rebar_column_labels)
         self.num_rebars = len(self.rebars)
         self.id = pd.DataFrame(columns=RcSection.id_column_labels)
+        self.beta_1 = get_beta_1(fc)
 
     def get_extents(self):
         """Return the boundaries of the defined section.
@@ -134,6 +135,12 @@ class RcSection(object):
 
         return self.id
 
+    def get_P(self, e_top, e_bot):
+        rebar_P = self.rebars.apply(
+            rebar_force, axis=1, args=(self.thk, e_top, e_bot)
+        )
+
+
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
@@ -142,20 +149,77 @@ class RcSection(object):
 class Slab(RcSection):
     pass
 
-
 class RectangularBeam(RcSection):
     pass
-
 
 class WBeam(RcSection):
     pass
 
-
 class CustomBeam(RcSection):
     pass
-
 
 # %% Define miscellaneous utility functions
 
 def circle_area(diam):
     return np.pi / 4 * diam ** 2
+
+
+def get_beta_1(fc):
+    """Get the beta_1 parameter for the Whitney Stress Block
+        simplification (ACI-318 code section 10.2.7)
+    :param fc: concrete compressive strength in MPa
+    :return: beta_1 parameter
+    """
+    if fc <= 28:
+        beta_1 = 0.85
+    elif 28 < fc <= 56:
+        beta_1 = 0.85 - 0.05 * (fc - 28) / 7
+    else:
+        beta_1 = 0.65
+    return beta_1
+
+
+def rebar_force(rebar, thk, e_top, e_bot):
+    strain = (e_top - e_bot) / thk * rebar['y']
+    stress = strain * rebar['Es']
+    stress = max(min(rebar['sy'], stress), -rebar['sy'])
+    if (stress > 0) and not rebar['compression']:
+        stress = 0
+    force = stress * rebar['area']
+    return force
+
+
+def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003, rebars=None):
+
+    try:
+        # Setup direction factor so we can assume e_top > e_bot
+        if e_top > e_bot:
+            direction_factor = 1
+        elif e_top < e_bot:
+            direction_factor = -1
+            e_top, e_bot = e_bot, e_top
+
+        c_from_bot = thk / (e_top - e_bot) * (0 - e_bot)
+
+        if c_from_bot >= thk:
+            # Neutral axis is above cross-section; i.e. entire
+            # section is in tension
+            conc_P = 0
+            conc_P_centroid = 0
+
+        else:
+            c_from_top = thk - c_from_bot
+            a_from_top = beta_1 * c_from_top
+            conc_P_centroid = direction_factor * (thk/2 - a_from_top/2)
+            conc_P = a_from_top * 0.85 * fc * width
+
+        return conc_P, conc_P_centroid
+
+    except ZeroDivisionError:
+        assert e_top == e_bot
+        if e_top < 0:
+            return 0, 0
+        else:
+            conc_stress = min(e_top, e_fc) * fc / e_fc
+            conc_P = 0.85 * conc_stress * width * thk
+            return conc_P, 0
