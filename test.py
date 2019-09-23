@@ -16,7 +16,8 @@ from rc import RcSection, get_beta_1, rebar_force, conc_force
 
 # %% Global variables
 steel_sy = 500
-steel_Es = 20000
+steel_Es = 200000
+
 
 # %% Testcases for rc.py
 
@@ -36,11 +37,11 @@ class TestRC(unittest.TestCase):
             'width': self.width,
             'thk': self.thk,
             'fc': self.fc,
-            }
+        }
         self.rc = RcSection(**inputs)
         self.rebar_od = 32
         self.cover = 165
-        self.rebar_pos_y1 = self.thk - self.cover - self.rebar_od/2
+        self.rebar_pos_y1 = self.thk - self.cover - self.rebar_od / 2
         self.rebar_pos_y2 = self.cover + self.rebar_od / 2
         self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y1)
         self.rc.add_rebar(self.rebar_od, 0, self.rebar_pos_y2,
@@ -64,7 +65,7 @@ class TestRC(unittest.TestCase):
         mock_show.return_value = None
         fig, axis = self.rc.plot_section()
         self.assertNotEqual(fig.get_axes(), [])
-        self.assertEqual(len(axis.patches), len(self.rc.rebars)+1)
+        self.assertEqual(len(axis.patches), len(self.rc.rebars) + 1)
 
     def test_mat_props(self):
         """Test material property input.
@@ -72,43 +73,51 @@ class TestRC(unittest.TestCase):
         mat_props = self.rc.get_mat_props()
         self.assertIsInstance(mat_props, dict)
         self.assertEqual(mat_props['concrete']['fc'], self.fc)
-        self.assertEqual(mat_props['rebar0']['Es'], 2000)
+        self.assertEqual(mat_props['rebar0']['Es'], 200000)
 
     def test_max_tension(self):
         id_df = self.rc.generate_interaction_diagram()
-        rebar_area = np.pi/4*self.rebar_od**2
-        max_tension = -2*steel_sy*rebar_area
+        rebar_area = np.pi / 4 * self.rebar_od ** 2
+        max_tension = -2 * steel_sy * rebar_area
         print(id_df)
         self.assertEqual(max_tension, id_df['P'].iloc[-1])
         self.assertEqual(0, id_df['M'].iloc[-1])
 
     def test_max_compression(self):
         id_df = self.rc.generate_interaction_diagram()
-        rebar_area = np.pi/4*self.rebar_od**2
-        max_compression = steel_sy*rebar_area + \
-                          0.85*self.fc*(self.width*self.thk - 2*rebar_area)
+        rebar_area = np.pi / 4 * self.rebar_od ** 2
+        max_compression = steel_sy * rebar_area + \
+                          0.85 * self.fc * (self.width * self.thk - 2 * rebar_area)
         print(id_df)
         self.assertEqual(max_compression, id_df['P'].iloc[0])
         self.assertEqual(0, id_df['M'].iloc[0])
 
     def test_get_P(self):
         rebar_area = np.pi / 4 * self.rebar_od ** 2
-        max_compression = (self.width*self.thk - 2*rebar_area)*0.85*self.fc + \
-            rebar_area * steel_sy
+        max_compression = (self.width * self.thk - 2 * rebar_area) * 0.85 * self.fc + \
+                          rebar_area * steel_sy
         max_tension = -2 * rebar_area * steel_sy
         test_e_top = -0.005
         test_e_bot = 0.003
         c = -0.003 / (test_e_top - test_e_bot) * self.thk
-        a = 0.85*c
-        test_e_rebar = test_e_bot + \
-            self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
-        test_P = a*self.fc + test_e_rebar * steel_Es
+        beta_1 = get_beta_1(self.fc)
+        a = beta_1 * c
+        test_e_rebar1 = test_e_bot + \
+                        self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
+        test_e_rebar2 = test_e_bot + \
+                        self.rebar_pos_y2 / self.thk * (test_e_top - test_e_bot)
+        test_P_rebar2 = rebar_area * (min(test_e_rebar2 * steel_Es, steel_sy) - 0.85 * self.fc)
+        test_P = 0.85 * a * self.fc * self.width + test_P_rebar2 + \
+                 max(test_e_rebar1 * steel_Es, -steel_sy)*rebar_area
         test_cases = [(0.003, 0.003, max_compression),
                       (-0.003, -0.003, max_tension),
                       (test_e_top, test_e_bot, test_P),
                       ]
         for e_top, e_bot, P in test_cases:
-            self.assertEqual(P, self.rc.get_P(e_top, e_bot))
+            msg_string = "e_top = {}, e_bot = {}, P = {}".format(e_top,
+                                                                 e_bot,
+                                                                 P)
+            self.assertEqual(self.rc.get_P(e_top, e_bot), P, msg=msg_string)
 
     def test_get_beta_1(self):
         self.assertEqual(0.65, get_beta_1(100))
@@ -126,12 +135,12 @@ class TestRC(unittest.TestCase):
 
         e_top = 1
         e_bot = 0
-        test_f = rebar_force(rebar, thk, e_top, e_bot)
-        self.assertEqual(test_f, 0)
+        test_f = rebar_force(rebar, thk, e_top, e_bot, fc=1, e_fc=0.2)
+        self.assertAlmostEqual(test_f, -8.5)
 
         rebar['compression'] = True
-        test_f = rebar_force(rebar, thk, e_top, e_bot)
-        self.assertEqual(test_f, 2)
+        test_f = rebar_force(rebar, thk, e_top, e_bot, fc=1, e_fc=0.2)
+        self.assertAlmostEqual(test_f, 2 - 8.5)
 
     def test_conc_force(self):
         thk = 10
@@ -165,6 +174,7 @@ class TestRC(unittest.TestCase):
                                  fc=10, e_fc=0.003)
         self.assertEqual(test_c, 0.85 * 5 * 10)
         self.assertEqual(y_c, 5 - (5 / 2))
+
 
 # %% Testcases for resp_spect.py
 

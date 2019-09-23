@@ -19,8 +19,8 @@ from scipy.optimize import minimize
 
 default_materials = {
     'concrete': {'fc': 35, 'e_fc': 0.003},
-    'Gr60': {'sy': 413.685, 'Es': 2000, 'compression': False},
-    '500': {'sy': 500, 'Es': 2000, 'compression': False},
+    'Gr60': {'sy': 413.685, 'Es': 200000, 'compression': False},
+    '500': {'sy': 500, 'Es': 200000, 'compression': False},
 }
 
 
@@ -56,7 +56,7 @@ class RcSection(object):
         return self.width, self.thk
 
     def add_rebar(self, D=10, x=0, y=175, sy=500,
-                  Es=2000, compression=False):
+                  Es=200000, compression=False):
         """Add a single rebar to the section, defined by diameter,
         x position, and y position.
         """
@@ -137,10 +137,14 @@ class RcSection(object):
 
     def get_P(self, e_top, e_bot):
         rebar_P = self.rebars.apply(
-            rebar_force, axis=1, args=(self.thk, e_top, e_bot)
+            rebar_force, axis=1, args=(self.thk, e_top, e_bot),
+            **self.conc_matprops,
         )
-
-
+        conc_P, conc_cent = conc_force(self.thk, self.width,
+                                       e_top, e_bot, self.beta_1,
+                                       **self.conc_matprops)
+        P = np.sum(rebar_P) + conc_P
+        return P
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
@@ -149,16 +153,20 @@ class RcSection(object):
 class Slab(RcSection):
     pass
 
+
 class RectangularBeam(RcSection):
     pass
 
+
 class WBeam(RcSection):
     pass
+
 
 class CustomBeam(RcSection):
     pass
 
 # %% Define miscellaneous utility functions
+
 
 def circle_area(diam):
     return np.pi / 4 * diam ** 2
@@ -179,23 +187,26 @@ def get_beta_1(fc):
     return beta_1
 
 
-def rebar_force(rebar, thk, e_top, e_bot):
-    strain = (e_top - e_bot) / thk * rebar['y']
+def rebar_force(rebar, thk, e_top, e_bot, fc=35, e_fc=0.003):
+    strain = (e_top - e_bot) / thk * rebar['y'] + e_bot
     stress = strain * rebar['Es']
     stress = max(min(rebar['sy'], stress), -rebar['sy'])
-    if (stress > 0) and not rebar['compression']:
-        stress = 0
+    if strain > 0:
+        conc_stress = 0.85 * fc / e_fc * min(e_fc, max(e_top, e_bot))
+        if rebar['compression']:
+            stress = stress - conc_stress
+        else:
+            stress = -conc_stress
     force = stress * rebar['area']
     return force
 
 
-def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003, rebars=None):
+def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
 
     try:
         # Setup direction factor so we can assume e_top > e_bot
-        if e_top > e_bot:
-            direction_factor = 1
-        elif e_top < e_bot:
+        direction_factor = 1
+        if e_top < e_bot:
             direction_factor = -1
             e_top, e_bot = e_bot, e_top
 
@@ -208,10 +219,11 @@ def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003, rebars=None)
             conc_P_centroid = 0
 
         else:
-            c_from_top = thk - c_from_bot
-            a_from_top = beta_1 * c_from_top
-            conc_P_centroid = direction_factor * (thk/2 - a_from_top/2)
-            conc_P = a_from_top * 0.85 * fc * width
+            max_conc_stress = fc * min(e_top, e_fc)/e_fc
+            abs_c_from_top = thk - c_from_bot
+            abs_a_from_top = min(beta_1 * abs_c_from_top, thk)
+            conc_P_centroid = direction_factor * (thk/2 - abs_a_from_top/2)
+            conc_P = abs_a_from_top * 0.85 * max_conc_stress * width
 
         return conc_P, conc_P_centroid
 
