@@ -9,7 +9,13 @@ from rc import RcSection, rebar_force, get_beta_1
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from mpl_toolkits import mplot3d
 
+
+
+
+# Test basic plotting
 test_rc = RcSection()
 test_rc.add_rebar()
 test_rc.add_rebar(y=25, compression=True)
@@ -17,6 +23,8 @@ print(test_rc.get_extents())
 print(test_rc.get_mat_props())
 # test_rc.plot_section()
 
+
+# Test rebar stress evaluations
 e_top = 0.003
 e_bot = 0.003
 thk = test_rc.thk
@@ -58,3 +66,17 @@ test_e_rebar2 = test_e_bot + \
                 rebar_pos_y2 / thk * (test_e_top - test_e_bot)
 test_P_rebar2 = rebar_area*(min(test_e_rebar2 * steel_Es, steel_sy) - 0.85 * fc)
 test_P = 0.85 * a * fc * width + test_P_rebar2 + test_P_rebar1
+
+# Plot get_P with a simple section
+x = np.linspace(-0.005, 0.003, 50, endpoint=True)
+y = np.linspace(-0.005, 0.003, 50, endpoint=True)
+X, Y = np.meshgrid(x, y)
+Z = np.vectorize(rc.get_P)(X, Y)
+
+fig = plt.Figure()
+ax = plt.gca(projection='3d')
+
+surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm)
+fig.colorbar(surf)
+plt.show()
+
