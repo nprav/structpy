@@ -33,6 +33,7 @@ class TestRC(unittest.TestCase):
         self.width = 200
         self.thk = 1750
         self.fc = 40
+        self.beta_1 = get_beta_1(self.fc)
         inputs = {
             'width': self.width,
             'thk': self.thk,
@@ -76,21 +77,17 @@ class TestRC(unittest.TestCase):
         self.assertEqual(mat_props['rebar0']['Es'], 200000)
 
     def test_max_tension(self):
-        id_df = self.rc.generate_interaction_diagram()
+        test_max_tension, ety = self.rc.get_max_tension_P()
         rebar_area = np.pi / 4 * self.rebar_od ** 2
         max_tension = -2 * steel_sy * rebar_area
-        print(id_df)
-        self.assertEqual(max_tension, id_df['P'].iloc[-1])
-        self.assertEqual(0, id_df['M'].iloc[-1])
+        self.assertEqual(max_tension, test_max_tension)
 
     def test_max_compression(self):
-        id_df = self.rc.generate_interaction_diagram()
+        test_max_compression, efc = self.rc.get_max_compression_P()
         rebar_area = np.pi / 4 * self.rebar_od ** 2
         max_compression = steel_sy * rebar_area + \
                           0.85 * self.fc * (self.width * self.thk - 2 * rebar_area)
-        print(id_df)
-        self.assertEqual(max_compression, id_df['P'].iloc[0])
-        self.assertEqual(0, id_df['M'].iloc[0])
+        self.assertEqual(max_compression, test_max_compression)
 
     def test_get_P(self):
         rebar_area = np.pi / 4 * self.rebar_od ** 2
@@ -100,15 +97,14 @@ class TestRC(unittest.TestCase):
         test_e_top = -0.005
         test_e_bot = 0.003
         c = -0.003 / (test_e_top - test_e_bot) * self.thk
-        beta_1 = get_beta_1(self.fc)
-        a = beta_1 * c
+        a = self.beta_1 * c
         test_e_rebar1 = test_e_bot + \
                         self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
         test_e_rebar2 = test_e_bot + \
                         self.rebar_pos_y2 / self.thk * (test_e_top - test_e_bot)
         test_P_rebar2 = rebar_area * (min(test_e_rebar2 * steel_Es, steel_sy) - 0.85 * self.fc)
         test_P = 0.85 * a * self.fc * self.width + test_P_rebar2 + \
-                 max(test_e_rebar1 * steel_Es, -steel_sy)*rebar_area
+                 max(test_e_rebar1 * steel_Es, -steel_sy) * rebar_area
         test_cases = [(0.003, 0.003, max_compression),
                       (-0.003, -0.003, max_tension),
                       (test_e_top, test_e_bot, test_P),
@@ -117,7 +113,7 @@ class TestRC(unittest.TestCase):
             msg_string = "e_top = {}, e_bot = {}, P = {}".format(e_top,
                                                                  e_bot,
                                                                  P)
-            self.assertEqual(self.rc.get_P(e_top, e_bot), P, msg=msg_string)
+            self.assertEqual(P, self.rc.get_P((e_top, e_bot)), msg=msg_string)
 
     def test_get_beta_1(self):
         self.assertEqual(0.65, get_beta_1(100))
@@ -174,6 +170,63 @@ class TestRC(unittest.TestCase):
                                  fc=10, e_fc=0.003)
         self.assertEqual(test_c, 0.85 * 5 * 10)
         self.assertEqual(y_c, 5 - (5 / 2))
+
+    def test_get_M(self):
+        rebar_area = np.pi / 4 * self.rebar_od ** 2
+        self.rc.rebars['compression'] = False
+        test_cases = []
+
+        # Pure tension case
+        test_e_top = -0.003
+        test_e_bot = -0.003
+        test_M = 0
+        test_cases.append((test_e_top, test_e_bot, test_M))
+
+        # Pure compression case
+        test_e_top2 = 0.003
+        test_e_bot2 = 0.003
+        test_M2 = 0
+        test_cases.append((test_e_top2, test_e_bot2, test_M2))
+
+        # Bending case 1
+        test_e_top3 = -0.003
+        test_e_bot3 = 0.003
+        abs_c_from_bot = (0 - test_e_bot3) / (test_e_top3 - test_e_bot3) * self.thk
+        abs_a_from_bot = self.beta_1 * abs_c_from_bot
+        conc_P = abs_a_from_bot * 0.85 * self.fc * self.width
+        conc_centroid = -(self.thk / 2 - abs_a_from_bot / 2)
+        tens_rebar_strain = self.rebar_pos_y1 / self.thk * (test_e_top3 - test_e_bot3) + \
+                            test_e_bot3
+        tens_rebar_P = max(tens_rebar_strain, -steel_sy / steel_Es) * steel_Es * rebar_area
+        tens_rebar_centroid = self.rebar_pos_y1 - self.thk / 2
+        comp_rebar_P = -0.85 * self.fc * rebar_area
+        comp_rebar_centroid = self.rebar_pos_y2 - self.thk/2
+        test_M3 = conc_P * conc_centroid + tens_rebar_P * tens_rebar_centroid + \
+            comp_rebar_P * comp_rebar_centroid
+        test_cases.append((test_e_top3, test_e_bot3, test_M3))
+
+        # Bending case 2
+        test_e_top4 = 0.003
+        test_e_bot4 = -0.003
+        abs_c_from_top = (test_e_top4 - 0) / (test_e_top4 - test_e_bot4) * self.thk
+        abs_a_from_top = self.beta_1 * abs_c_from_top
+        conc_P = abs_a_from_top * 0.85 * self.fc * self.width
+        conc_centroid = self.thk / 2 - abs_a_from_top / 2
+        tens_rebar_strain = self.rebar_pos_y2 / self.thk * (test_e_top4 - test_e_bot4) + \
+                            test_e_bot4
+        tens_rebar_P = max(tens_rebar_strain, -steel_sy / steel_Es) * steel_Es * rebar_area
+        tens_rebar_centroid = self.rebar_pos_y2 - self.thk / 2
+        comp_rebar_P = -0.85 * self.fc * rebar_area
+        comp_rebar_centroid = self.rebar_pos_y1 - self.thk / 2
+        test_M4 = conc_P * conc_centroid + tens_rebar_P * tens_rebar_centroid + \
+            comp_rebar_P * comp_rebar_centroid
+        test_cases.append((test_e_top4, test_e_bot4, test_M4))
+
+        for e_top, e_bot, M in test_cases:
+            msg_string = "e_top = {}, e_bot = {}, M = {}".format(e_top,
+                                                                 e_bot,
+                                                                 M)
+            self.assertEqual(M, self.rc.get_M((e_top, e_bot)), msg=msg_string)
 
 
 # %% Testcases for resp_spect.py

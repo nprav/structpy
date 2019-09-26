@@ -114,28 +114,33 @@ class RcSection(object):
         return fig, axis
 
     def generate_interaction_diagram(self, npts=50):
-        max_tension = -np.sum(self.rebars['area'] * self.rebars['sy'])
+        max_tension, ety = self.get_max_tension_P()
+        max_compression, efc = self.get_max_compression_P()
 
-        compr_rebars = self.rebars[self.rebars['compression']]
+        id_pos = pd.DataFrame(columns=RcSection.id_column_labels)
+        id_neg = pd.DataFrame(columns=RcSection.id_column_labels)
 
-        max_conc_compression = 0.85 * (self.thk * self.width -
-                                       np.sum(self.rebars['area'])) * \
-                               self.conc_matprops['fc'] + \
-                               np.sum(compr_rebars['area'] * compr_rebars['sy'])
+        for id in [id_pos, id_neg]:
+            id.loc[0] = [max_compression, 0,
+                            efc, efc,
+                            ]
+            id.loc[npts-1] = [max_tension, 0,
+                                  ety, ety,
+                                  ]
 
-        ety = -self.rebars['e_y'].max()
-        efc = self.conc_matprops['e_fc']
+        for i in range(1, npts-1):
+            force = max_compression - i*(max_compression - max_tension)/(npts-1)
+            constraints = {'type': 'eq', 'fun': self.get_P}
+            res_pos = minimize(lambda x: -self.get_M(x), (0, 0), constraints=constraints)
+            id_pos.loc[i] = [force, -res_pos['fun'], *res_pos['x']]
+            res_neg = minimize(self.get_M, (0, 0), constraints=constraints)
+            id_neg.loc[i] = [force, res_neg['fun'], *res_neg['x']]
 
-        self.id.loc[0] = [max_conc_compression, 0,
-                          efc, efc,
-                          ]
-        self.id.loc[npts] = [max_tension, 0,
-                             ety, ety,
-                             ]
-
+        self.id = pd.concat([id_pos, id_neg])
         return self.id
 
-    def get_P(self, e_top, e_bot):
+    def get_P(self, strains):
+        e_top, e_bot = strains
         rebar_P = self.rebars.apply(
             rebar_force, axis=1, args=(self.thk, e_top, e_bot),
             **self.conc_matprops,
@@ -145,6 +150,37 @@ class RcSection(object):
                                        **self.conc_matprops)
         P = np.sum(rebar_P) + conc_P
         return P
+
+    def get_M(self, strains):
+        e_top, e_bot = strains
+        rebar_P = self.rebars.apply(
+            rebar_force, axis=1, args=(self.thk, e_top, e_bot),
+            **self.conc_matprops,
+        )
+        rebar_cent = self.rebars['y'] - self.thk/2
+        rebar_M = rebar_P * rebar_cent
+        conc_P, conc_cent = conc_force(self.thk, self.width,
+                                       e_top, e_bot, self.beta_1,
+                                       **self.conc_matprops)
+        M = np.sum(rebar_M) + conc_P * conc_cent
+        return M
+
+    def get_max_tension_P(self):
+        max_tension = -np.sum(self.rebars['area'] * self.rebars['sy'])
+        ety = -self.rebars['e_y'].max()
+        return max_tension, ety
+
+    def get_max_compression_P(self):
+        compr_rebars = self.rebars[self.rebars['compression']]
+        max_conc_compression = 0.85 * (self.thk * self.width -
+                                       np.sum(self.rebars['area'])) * \
+                               self.conc_matprops['fc'] + \
+                               np.sum(compr_rebars['area'] * compr_rebars['sy'])
+        if not compr_rebars.empty:
+            efc = max(compr_rebars['e_y'].max(), self.conc_matprops['e_fc'])
+        else:
+            efc = self.conc_matprops['e_fc']
+        return max_conc_compression, efc
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
@@ -227,7 +263,7 @@ def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
 
         return conc_P, conc_P_centroid
 
-    except ZeroDivisionError:
+    except (ZeroDivisionError, RuntimeWarning):
         assert e_top == e_bot
         if e_top < 0:
             return 0, 0

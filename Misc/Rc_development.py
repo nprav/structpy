@@ -5,7 +5,7 @@ to the actual script files.
 
 # %% Make and test an RC section
 
-from rc import RcSection, rebar_force, get_beta_1
+from rc import RcSection, rebar_force, get_beta_1, conc_force
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -80,3 +80,68 @@ surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm)
 fig.colorbar(surf)
 plt.show()
 
+
+# Testing get_M testing function in test.py
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             compression=False)
+
+rebar_area = np.pi/4 * rebar_od**2
+test_e_top = -0.003
+test_e_bot = 0.003
+
+rebar_P = rc.rebars.apply(
+            rebar_force, axis=1, args=(rc.thk, test_e_top, test_e_bot),
+            **rc.conc_matprops,
+        )
+rebar_cent = rc.rebars['y'] - rc.thk/2
+
+conc_P, conc_cent = conc_force(rc.thk, rc.width,
+                                       test_e_top, test_e_bot, rc.beta_1,
+                                       **rc.conc_matprops)
+
+
+# Testing max_compression function in rc.py
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             compression=True)
+
+compr_rebars = rc.rebars[rc.rebars['compression']]
+max_conc_compression = 0.85 * (thk * width -
+                                       np.sum(rc.rebars['area'])) * \
+                               rc.conc_matprops['fc'] + \
+                               np.sum(compr_rebars['area'] * compr_rebars['sy'])
+if not compr_rebars.empty:
+    efc = max(compr_rebars['e_y'].max(), rc.conc_matprops['e_fc'])
+else:
+    efc = rc.conc_matprops['e_fc']
