@@ -115,6 +115,12 @@ class TestRC(unittest.TestCase):
                                                                  P)
             self.assertEqual(P, self.rc.get_P((e_top, e_bot)), msg=msg_string)
 
+    def test_no_rebar_cases(self):
+        rc = RcSection()
+        strains = (-0.003, -0.003)
+        self.assertEqual(0, rc.get_P(strains))
+        self.assertEqual(0, rc.get_M(strains))
+
     def test_get_beta_1(self):
         self.assertEqual(0.65, get_beta_1(100))
         self.assertEqual(0.85, get_beta_1(10))

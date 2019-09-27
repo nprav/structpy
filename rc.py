@@ -141,28 +141,36 @@ class RcSection(object):
 
     def get_P(self, strains):
         e_top, e_bot = strains
-        rebar_P = self.rebars.apply(
-            rebar_force, axis=1, args=(self.thk, e_top, e_bot),
-            **self.conc_matprops,
-        )
+        if not self.rebars.empty:
+            rebar_P = self.rebars.apply(
+                rebar_force, axis=1, args=(self.thk, e_top, e_bot),
+                **self.conc_matprops,
+            )
+            P = np.sum(rebar_P)
+        else:
+            P = 0
         conc_P, conc_cent = conc_force(self.thk, self.width,
                                        e_top, e_bot, self.beta_1,
                                        **self.conc_matprops)
-        P = np.sum(rebar_P) + conc_P
+        P = P + conc_P
         return P
 
     def get_M(self, strains):
         e_top, e_bot = strains
-        rebar_P = self.rebars.apply(
-            rebar_force, axis=1, args=(self.thk, e_top, e_bot),
-            **self.conc_matprops,
-        )
-        rebar_cent = self.rebars['y'] - self.thk/2
-        rebar_M = rebar_P * rebar_cent
+        if not self.rebars.empty:
+            rebar_P = self.rebars.apply(
+                rebar_force, axis=1, args=(self.thk, e_top, e_bot),
+                **self.conc_matprops,
+            )
+            rebar_cent = self.rebars['y'] - self.thk/2
+            rebar_M = rebar_P * rebar_cent
+            M = np.sum(rebar_M)
+        else:
+            M = 0
         conc_P, conc_cent = conc_force(self.thk, self.width,
                                        e_top, e_bot, self.beta_1,
                                        **self.conc_matprops)
-        M = np.sum(rebar_M) + conc_P * conc_cent
+        M = M + conc_P * conc_cent
         return M
 
     def get_max_tension_P(self):

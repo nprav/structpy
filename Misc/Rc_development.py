@@ -9,6 +9,7 @@ from rc import RcSection, rebar_force, get_beta_1, conc_force
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize, brute
 from matplotlib import cm
 from mpl_toolkits import mplot3d
 
@@ -115,6 +116,17 @@ conc_P, conc_cent = conc_force(rc.thk, rc.width,
                                        test_e_top, test_e_bot, rc.beta_1,
                                        **rc.conc_matprops)
 
+x = np.linspace(-0.005, 0.003, 50, endpoint=True)
+y = np.linspace(-0.005, 0.003, 50, endpoint=True)
+X, Y = np.meshgrid(x, y)
+Z = np.vectorize(lambda x, y: rc.get_M((x, y)))(X, Y)
+
+fig = plt.Figure()
+ax = plt.gca(projection='3d')
+
+surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm)
+fig.colorbar(surf)
+plt.show()
 
 # Testing max_compression function in rc.py
 steel_sy = 500
@@ -145,3 +157,39 @@ if not compr_rebars.empty:
     efc = max(compr_rebars['e_y'].max(), rc.conc_matprops['e_fc'])
 else:
     efc = rc.conc_matprops['e_fc']
+
+
+
+# Testing get M from P using minimize from scipy
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2)
+
+npts = 50
+max_tension = rc.get_max_tension_P()[0]
+max_compression = rc.get_max_compression_P()[0]
+tol = (max_compression - max_tension)/npts * 0.1
+test_P = 0
+constraints = [
+    {'type': 'ineq', 'fun': lambda x: tol - abs(rc.get_P(x) - test_P)},
+]
+bounds = [(-0.005, 0.003)]*2
+x0 = (0, 0)
+options = {'disp': True, 'maxiter': 10}
+res = minimize(rc.get_M, x0=x0,
+               constraints=constraints, bounds=bounds,
+               options=options)
