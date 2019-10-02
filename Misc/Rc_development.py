@@ -103,8 +103,8 @@ rc.add_rebar(rebar_od, 0, rebar_pos_y2,
              compression=False)
 
 rebar_area = np.pi/4 * rebar_od**2
-test_e_top = -0.003
-test_e_bot = 0.003
+test_e_top = 0
+test_e_bot = 0
 
 rebar_P = rc.rebars.apply(
             rebar_force, axis=1, args=(rc.thk, test_e_top, test_e_bot),
@@ -160,6 +160,44 @@ else:
 
 
 
+# Debug nan issues
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             compression=False)
+test_strains = np.zeros(2)
+test_e_top, test_e_bot = test_strains
+
+if not rc.rebars.empty:
+    rebar_P = rc.rebars.apply(
+        rebar_force, axis=1, args=(rc.thk, test_e_top, test_e_bot),
+        **rc.conc_matprops,
+    )
+    P = np.sum(rebar_P)
+else:
+    P = 0
+conc_P, conc_cent = conc_force(rc.thk, rc.width,
+                               test_e_top, test_e_bot, rc.beta_1,
+                               **rc.conc_matprops)
+P = P + conc_P
+
+
+
+
 # Testing get M from P using minimize from scipy
 steel_sy = 500
 steel_Es = 200000
@@ -182,14 +220,16 @@ rc.add_rebar(rebar_od, 0, rebar_pos_y2)
 npts = 50
 max_tension = rc.get_max_tension_P()[0]
 max_compression = rc.get_max_compression_P()[0]
-tol = (max_compression - max_tension)/npts * 0.1
-test_P = 0
+tol = (max_compression - max_tension)/npts * 0.5
+test_P = max_compression*0.7
 constraints = [
-    {'type': 'ineq', 'fun': lambda x: tol - abs(rc.get_P(x) - test_P)},
+    # {'type': 'ineq', 'fun': lambda x: tol - abs(rc.get_P(x) - test_P)},
+    {'type': 'eq', 'fun': lambda x: rc.get_P(x) - test_P},
 ]
 bounds = [(-0.005, 0.003)]*2
-x0 = (0, 0)
-options = {'disp': True, 'maxiter': 10}
+x0 = (0.002, 0.0021)
+options = {'disp': True, 'maxiter': 1000}
+
 res = minimize(rc.get_M, x0=x0,
                constraints=constraints, bounds=bounds,
                options=options)

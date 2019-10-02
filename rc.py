@@ -247,7 +247,7 @@ def rebar_force(rebar, thk, e_top, e_bot, fc=35, e_fc=0.003):
 
 def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
 
-    try:
+    if e_top != e_bot:
         # Setup direction factor so we can assume e_top > e_bot
         direction_factor = 1
         if e_top < e_bot:
@@ -271,8 +271,7 @@ def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
 
         return conc_P, conc_P_centroid
 
-    except (ZeroDivisionError, RuntimeWarning):
-        assert e_top == e_bot
+    else:
         if e_top < 0:
             return 0, 0
         else:
