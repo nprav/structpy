@@ -233,3 +233,60 @@ options = {'disp': True, 'maxiter': 1000}
 res = minimize(rc.get_M, x0=x0,
                constraints=constraints, bounds=bounds,
                options=options)
+
+
+
+# Testing minmax strain limits
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2)
+
+min_top_str = (-rc.rebars['sy']/rc.rebars['Es'] - rc.conc_matprops['e_fc']) \
+              / rc.rebars['y'] * rc.thk
+max_top_str = rc.conc_matprops['e_fc']
+
+min_bot_str = (-rc.rebars['sy']/rc.rebars['Es'] - rc.conc_matprops['e_fc']) \
+              / (rc.rebars['y'] - rc.thk) * (-rc.thk) + rc.conc_matprops['e_fc']
+
+max_bot_str = rc.conc_matprops['e_fc']
+
+
+
+# Test classic interaction diagram method
+steel_sy = 500
+steel_Es = 200000
+width = 200
+thk = 1750
+fc = 40
+inputs = {
+    'width': width,
+    'thk': thk,
+    'fc': fc,
+}
+rc = RcSection(**inputs)
+rebar_od = 32
+cover = 165
+rebar_pos_y1 = thk - cover - rebar_od / 2
+rebar_pos_y2 = cover + rebar_od / 2
+rc.add_rebar(rebar_od, 0, rebar_pos_y1)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2)
+
+max_tension, ety = rc.get_max_tension_P()
+max_compression, efc = rc.get_max_compression_P()
+
+top_str_limits, bot_str_limits = rc.get_strain_limits()
+

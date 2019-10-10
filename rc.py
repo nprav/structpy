@@ -191,7 +191,20 @@ class RcSection(object):
         return max_conc_compression, efc
 
     def get_strain_limits(self):
-        pass
+        if len(self.rebars) > 0:
+            min_top_str = (-self.rebars['sy'] / self.rebars['Es'] - self.conc_matprops['e_fc']) \
+                          / self.rebars['y'] * self.thk
+            min_bot_str = (-self.rebars['sy']/self.rebars['Es'] - self.conc_matprops['e_fc']) \
+                          / (self.rebars['y'] - self.thk) * (-self.thk) + self.conc_matprops['e_fc']
+            top_str_limits = (min_top_str.min(), self.conc_matprops['e_fc'])
+            bot_str_limits = (min_bot_str.min(), self.conc_matprops['e_fc'])
+
+        else:
+            top_str_limits = (0, self.conc_matprops['e_fc'])
+            bot_str_limits = (0, self.conc_matprops['e_fc'])
+
+        return top_str_limits, bot_str_limits
+
 
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
