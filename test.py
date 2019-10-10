@@ -126,6 +126,19 @@ class TestRC(unittest.TestCase):
         self.assertEqual(0.85, get_beta_1(10))
         self.assertEqual(0.75, get_beta_1(42))
 
+    def test_get_strain_limits(self):
+        # Calculate top strain limit
+        min_top_str = (-steel_sy/steel_Es - 0.003) / self.rebar_pos_y2 * self.thk
+        # Calculate bot strain limit
+        min_bot_str = (-steel_sy/steel_Es - 0.003) / (self.rebar_pos_y1 - self.thk) * (-self.thk) + 0.003
+        # Get RcSection output
+        print(min_top_str, min_bot_str)
+        strain_limit_top, strain_limit_bot = self.rc.get_strain_limits()
+        # Test output
+        self.assertEqual((min_top_str, 0.003), strain_limit_top)
+        self.assertEqual((min_bot_str, 0.003), strain_limit_bot)
+
+
     def test_rebar_force(self):
         rebar = {'area': 10, 'y': 2, 'Es': 1,
                  'sy': 0.7, 'e_y': 0.7, 'compression': False}

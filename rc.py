@@ -190,6 +190,9 @@ class RcSection(object):
             efc = self.conc_matprops['e_fc']
         return max_conc_compression, efc
 
+    def get_strain_limits(self):
+        pass
+
 # %% Define RC Section childrenS
 # Define child classes for various types of beam shapes/continuous slabs
 
