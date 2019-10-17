@@ -267,26 +267,75 @@ max_bot_str = rc.conc_matprops['e_fc']
 
 
 # Test classic interaction diagram method
-steel_sy = 500
-steel_Es = 200000
-width = 200
-thk = 1750
-fc = 40
+steel_sy = 72500  # psi
+steel_Es = 29e6   # psi
+width = 200/25.4    # in
+thk = 1750/25.4   # in
+fc = 4512   # psi
 inputs = {
     'width': width,
     'thk': thk,
     'fc': fc,
 }
 rc = RcSection(**inputs)
-rebar_od = 32
-cover = 165
+rebar_od = 1.27     # in
+cover = 6.5     # in
 rebar_pos_y1 = thk - cover - rebar_od / 2
 rebar_pos_y2 = cover + rebar_od / 2
-rc.add_rebar(rebar_od, 0, rebar_pos_y1)
-rc.add_rebar(rebar_od, 0, rebar_pos_y2)
 
-max_tension, ety = rc.get_max_tension_P()
-max_compression, efc = rc.get_max_compression_P()
+rc.add_rebar(rebar_od, 0, rebar_pos_y1, compression=True,
+             sy=steel_sy, Es=steel_Es)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             sy=steel_sy, Es=steel_Es)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             sy=steel_sy, Es=steel_Es)
+rc.add_rebar(rebar_od, 0, rebar_pos_y2,
+             sy=steel_sy, Es=steel_Es)
+
 
 top_str_limits, bot_str_limits = rc.get_strain_limits()
 
+npts = 50
+id_neg = pd.DataFrame(columns=rc.id_column_labels)
+bot_str = bot_str_limits[1]
+alpha = thk/get_beta_1(fc)
+start_top_str = top_str_limits[1]/alpha * (alpha-thk)
+raw_spacing = (np.geomspace(1, 101, npts-5) - 1)/100
+spacing = raw_spacing * (top_str_limits[0] - start_top_str) + start_top_str
+for top_str in spacing:
+    P = rc.get_P((top_str, bot_str))
+    M = rc.get_M((top_str, bot_str))
+    id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
+
+top_str = top_str_limits[0]
+for bot_str in np.linspace(0, bot_str_limits[1], 5, endpoint=False)[::-1]:
+    P = rc.get_P((top_str, bot_str))
+    M = rc.get_M((top_str, bot_str))
+    id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
+
+plt.plot(id_neg.M, id_neg.P, 'x-')
+
+
+npts = 50
+id_pos = pd.DataFrame(columns=rc.id_column_labels)
+top_str = top_str_limits[1]
+alpha = thk/get_beta_1(fc)
+start_bot_str = bot_str_limits[1]/alpha * (alpha-thk)
+raw_spacing = (np.geomspace(1, 101, npts-5) - 1)/100
+spacing = raw_spacing * (bot_str_limits[0] - start_bot_str) + start_bot_str
+for bot_str in spacing:
+    P = rc.get_P((top_str, bot_str))
+    M = rc.get_M((top_str, bot_str))
+    id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
+
+bot_str = bot_str_limits[0]
+for top_str in np.linspace(0, top_str_limits[1], 5, endpoint=False)[::-1]:
+    P = rc.get_P((top_str, bot_str))
+    M = rc.get_M((top_str, bot_str))
+    id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
+
+plt.plot(id_pos.M, id_pos.P, 'x-')
+
+interaction_diagram = id_pos.append(id_neg[::-1])
+
+plt.plot(interaction_diagram.M, interaction_diagram.P)

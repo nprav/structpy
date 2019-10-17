@@ -114,29 +114,50 @@ class RcSection(object):
         return fig, axis
 
     def generate_interaction_diagram(self, npts=50):
-        max_tension, ety = self.get_max_tension_P()
-        max_compression, efc = self.get_max_compression_P()
+        npts = max(50, npts)
 
         id_pos = pd.DataFrame(columns=RcSection.id_column_labels)
         id_neg = pd.DataFrame(columns=RcSection.id_column_labels)
 
-        for id in [id_pos, id_neg]:
-            id.loc[0] = [max_compression, 0,
-                            efc, efc,
-                            ]
-            id.loc[npts-1] = [max_tension, 0,
-                                  ety, ety,
-                                  ]
+        top_str_limits, bot_str_limits = self.get_strain_limits()
 
-        for i in range(1, npts-1):
-            force = max_compression - i*(max_compression - max_tension)/(npts-1)
-            constraints = {'type': 'eq', 'fun': self.get_P}
-            res_pos = minimize(lambda x: -self.get_M(x), (0, 0), constraints=constraints)
-            id_pos.loc[i] = [force, -res_pos['fun'], *res_pos['x']]
-            res_neg = minimize(self.get_M, (0, 0), constraints=constraints)
-            id_neg.loc[i] = [force, res_neg['fun'], *res_neg['x']]
+        # Set up negative side of interaction diagram
+        bot_str = bot_str_limits[1]
+        alpha = self.thk / self.beta_1
+        start_top_str = top_str_limits[1] / alpha * (alpha - self.thk)
+        raw_spacing = (np.geomspace(1, 101, npts - 5) - 1) / 100
+        spacing = raw_spacing * (top_str_limits[0] - start_top_str) + start_top_str
+        for top_str in [top_str_limits[1], *spacing]:
+            P = self.get_P((top_str, bot_str))
+            M = self.get_M((top_str, bot_str))
+            id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
 
-        self.id = pd.concat([id_pos, id_neg])
+        top_str = top_str_limits[0]
+        for bot_str in np.linspace(0, bot_str_limits[1], 5, endpoint=False)[::-1]:
+            P = self.get_P((top_str, bot_str))
+            M = self.get_M((top_str, bot_str))
+            id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
+
+
+        # Setup postiive side of interaction diagram
+        top_str = top_str_limits[1]
+        start_bot_str = bot_str_limits[1] / alpha * (alpha - self.thk)
+        spacing = raw_spacing * (bot_str_limits[0] - start_bot_str) + start_bot_str
+        for bot_str in [bot_str_limits[1], *spacing]:
+            P = self.get_P((top_str, bot_str))
+            M = self.get_M((top_str, bot_str))
+            id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
+
+        bot_str = bot_str_limits[0]
+        for top_str in np.linspace(0, top_str_limits[1], 5, endpoint=False)[::-1]:
+            P = self.get_P((top_str, bot_str))
+            M = self.get_M((top_str, bot_str))
+            id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
+
+        # Combine, return, and plot interaction diagram
+        self.id = id_pos.append(id_neg[::-1])
+        plt.plot(self.id.M, self.id.P, 'x-')
+
         return self.id
 
     def get_P(self, strains):
