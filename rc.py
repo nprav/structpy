@@ -26,10 +26,11 @@ default_materials = {
 
 # %% Define overall section class
 
-
 class RcSection(object):
     """General concrete section class.
     """
+    # Define common class properties such as dataframe input labels \
+    # and general plotting settings settings.
     rebar_column_labels = ['x', 'y', 'D', 'area', 'sy',
                            'Es', 'e_y', 'compression',
                            ]
@@ -38,18 +39,27 @@ class RcSection(object):
     circle_kwargs = {'color': 'k'}
 
     def __init__(self, width=100, thk=200, fc=35, e_fc=0.003):
-        """Instantiate concrete section with a width (x) and thickness (y).
+        """Instantiate concrete section with a width (x), thickness (y),
+        concrete compressive strength, and failure strain.
+        Make sure units are consistent. Defaults to 100mm wide, 200mm thick,
+        35MPa concrete compressive strength, 0.003 mm/mm failure strain.
         """
+
         self.width = width
         self.thk = thk
         self.conc_matprops = {'fc': fc, 'e_fc': e_fc}
+
+        # Define empty dataframe for rebars
         self.rebars = pd.DataFrame(columns=RcSection.rebar_column_labels)
         self.num_rebars = len(self.rebars)
+
+        # Define empty dataframe for interaction diagram
         self.id = pd.DataFrame(columns=RcSection.id_column_labels)
         self.beta_1 = get_beta_1(fc)
 
     def get_extents(self):
-        """Return the boundaries of the defined section.
+        """Return the dimensions of the defined section.
+        Assuemes a simple rectangular cross-section.
         """
         print("Section Size : ({}, {})\n".format(
             self.width, self.thk))
@@ -58,7 +68,12 @@ class RcSection(object):
     def add_rebar(self, D=10, x=0, y=175, sy=500,
                   Es=200000, compression=False):
         """Add a single rebar to the section, defined by diameter,
-        x position, and y position.
+        x position, y position, yield strength, Young's modulus,
+        and a boolean, `compression`, that defines if the rebar is
+        active in compression or not.
+
+        Make sure units are consistent with concrete section material
+        property inputs.
         """
         area = np.pi / 4 * D ** 2
         e_y = sy / Es
@@ -94,7 +109,7 @@ class RcSection(object):
         return mat_props
 
     def plot_section(self):
-        """Plot the defined section.
+        """Plot the defined section (concrete and rebars).
         """
         fig, axis = plt.subplots()
         xy = (-self.width / 2, 0)
@@ -114,6 +129,10 @@ class RcSection(object):
         return fig, axis
 
     def generate_interaction_diagram(self, npts=50):
+        """Generate the interaction diagram for the defined
+        reinforced concrete section. Defaults to a minimum of
+        50 points.
+        """
         npts = max(50, npts)
 
         id_pos = pd.DataFrame(columns=RcSection.id_column_labels)
@@ -124,14 +143,22 @@ class RcSection(object):
         # Set up negative side of interaction diagram
         bot_str = bot_str_limits[1]
         alpha = self.thk / self.beta_1
+        # Get the first top strain value that will give a moment other
+        # than the maximum moment
         start_top_str = top_str_limits[1] / alpha * (alpha - self.thk)
+        # setup spacing of points on the interaction diagram
         raw_spacing = (np.geomspace(1, 101, npts - 5) - 1) / 100
         spacing = raw_spacing * (top_str_limits[0] - start_top_str) + start_top_str
+        # Iterate through the points and generate the interaction diagram
         for top_str in [top_str_limits[1], *spacing]:
             P = self.get_P((top_str, bot_str))
             M = self.get_M((top_str, bot_str))
             id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
 
+        # The worst case angle of section has been reached: concrete failure strain
+        # on one side, and tensile limit strain on the other. Now generate the final
+        # points by 'pushing out' the cross-section plane so that the concrete strain
+        # reaches 0, while the tensile limit strain is constant.
         top_str = top_str_limits[0]
         for bot_str in np.linspace(0, bot_str_limits[1], 5, endpoint=False)[::-1]:
             P = self.get_P((top_str, bot_str))
@@ -143,24 +170,31 @@ class RcSection(object):
         top_str = top_str_limits[1]
         start_bot_str = bot_str_limits[1] / alpha * (alpha - self.thk)
         spacing = raw_spacing * (bot_str_limits[0] - start_bot_str) + start_bot_str
+        # Iterate through the points and generate the interaction diagram
         for bot_str in [bot_str_limits[1], *spacing]:
             P = self.get_P((top_str, bot_str))
             M = self.get_M((top_str, bot_str))
             id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
 
+        # The worst case angle of section has been reached: concrete failure strain
+        # on one side, and tensile limit strain on the other. Now generate the final
+        # points by 'pushing out' the cross-section plane so that the concrete strain
+        # reaches 0, while the tensile limit strain is constant.
         bot_str = bot_str_limits[0]
         for top_str in np.linspace(0, top_str_limits[1], 5, endpoint=False)[::-1]:
             P = self.get_P((top_str, bot_str))
             M = self.get_M((top_str, bot_str))
             id_pos.loc[len(id_pos)] = [P, M, top_str, bot_str]
 
-        # Combine, return, and plot interaction diagram
+        # Combine, and plot, and return the interaction diagram
         self.id = id_pos.append(id_neg[::-1])
         plt.plot(self.id.M, self.id.P, 'x-')
 
         return self.id
 
     def get_P(self, strains):
+        """Get the force for a given tuple of strains: (top strain, bottom strain)
+        """
         e_top, e_bot = strains
         if not self.rebars.empty:
             rebar_P = self.rebars.apply(
@@ -177,6 +211,8 @@ class RcSection(object):
         return P
 
     def get_M(self, strains):
+        """Get the moment for a given tuple of strains: (top strain, bottom strain)
+        """
         e_top, e_bot = strains
         if not self.rebars.empty:
             rebar_P = self.rebars.apply(
@@ -195,21 +231,16 @@ class RcSection(object):
         return M
 
     def get_max_tension_P(self):
-        max_tension = -np.sum(self.rebars['area'] * self.rebars['sy'])
-        ety = -self.rebars['e_y'].max()
+        top_str_limits, bot_str_limits = self.get_strain_limits()
+        ety = min(top_str_limits[0], bot_str_limits[0])
+        max_tension = self.get_P((ety, ety))
         return max_tension, ety
 
     def get_max_compression_P(self):
-        compr_rebars = self.rebars[self.rebars['compression']]
-        max_conc_compression = 0.85 * (self.thk * self.width -
-                                       np.sum(self.rebars['area'])) * \
-                               self.conc_matprops['fc'] + \
-                               np.sum(compr_rebars['area'] * compr_rebars['sy'])
-        if not compr_rebars.empty:
-            efc = max(compr_rebars['e_y'].max(), self.conc_matprops['e_fc'])
-        else:
-            efc = self.conc_matprops['e_fc']
-        return max_conc_compression, efc
+        top_str_limits, bot_str_limits = self.get_strain_limits()
+        efc = min(top_str_limits[-1], bot_str_limits[-1])
+        max_compression = self.get_P((efc, efc))
+        return max_compression, efc
 
     def get_strain_limits(self):
         if len(self.rebars) > 0:
@@ -269,6 +300,18 @@ def get_beta_1(fc):
 
 
 def rebar_force(rebar, thk, e_top, e_bot, fc=35, e_fc=0.003):
+    """ Get the force associated with a rebar in a given reinforced
+    concrete section.
+    :param rebar: Dataframe row with rebar infomation. Should include the column
+                    labels from the RcSection class.
+    :param thk: thickness of reinforced concrete section. Units should be consistent
+                with the rebar input dimensions.
+    :param e_top: Strain at the top of the RC section.
+    :param e_bot: Strain at the bottom of the RC section.
+    :param fc: Concrete compressive strength.
+    :param e_fc: Concrete failure strain.
+    :return: Force associated with rebar.
+    """
     strain = (e_top - e_bot) / thk * rebar['y'] + e_bot
     stress = strain * rebar['Es']
     stress = max(min(rebar['sy'], stress), -rebar['sy'])
@@ -283,7 +326,17 @@ def rebar_force(rebar, thk, e_top, e_bot, fc=35, e_fc=0.003):
 
 
 def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
-
+    """ Get the concrete force from given top and bottom strains.
+    :param thk: RC section thickness.
+    :param width: RC section width.
+    :param e_top: Strain at the top of the RC section.
+    :param e_bot: Strain at the bottom of the RC section.
+    :param beta_1: beta parameter (Whitney Stress block formulation)
+    :param fc: Concrete compressive strength
+    :param e_fc: Concrete failure strain
+    :return: Concrete force, and force centroid with respect to the centroid
+             of the RC section.
+    """
     if e_top != e_bot:
         # Setup direction factor so we can assume e_top > e_bot
         direction_factor = 1
