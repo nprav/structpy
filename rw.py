@@ -384,11 +384,12 @@ def write_csv(filename, x, y, title="", txt="", col1="x", col2="y"):
     file.close()
 
 
-def write_acc(acc, filename, header=8):
+def write_acc(acc, filename, header=8, txt=''):
     '''Write a time history file in 8F9.6 Fortran format.
 
-    Input = ( list/array of acc files, filename, header = 8)
-    header = number of lines to skip at the start of the file (default = 0)
+    Input = ( list/array of acc files, filename, header = 8, txt = '')
+    header = number of lines to skip at the start of the file (default = 8, min of 1)
+    txt = text in the first line
     Output = Nothing, a file with the data in fortran 8f9.6 format is created
 
     Parameters
@@ -399,9 +400,12 @@ def write_acc(acc, filename, header=8):
     filename : str
         Address of target file with a filename and extension.
 
-    header : int>=0, optional
+    header : int>=1, optional
         Number of lines to skip at the start of the file.
-        Should be an integer greater than 0. Defaults to 8.
+        Should be an integer greater than 1. Defaults to 8.
+	
+    txt : str
+        String input in first header line.	
 
     Returns
     -------
@@ -409,8 +413,12 @@ def write_acc(acc, filename, header=8):
     '''
 
     file = open(filename, 'w')
+    header = max(1, header)
+
+    file = open(filename, 'w')
     file.seek(0, 0)
-    file.write("\n"*header)
+    file.write(txt + '\n')
+    file.write("\n"*(header - 1))
 
     if len(acc) % 8 > 0:
         acc = np.append(acc, [0]*(8-len(acc) % 8))
