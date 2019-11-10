@@ -9,6 +9,7 @@ shake/dmod/lsdyna/csv inputs and outputs.
 
 # %% Import required modules
 import numpy as np
+import re
 
 
 # %% Read functions
@@ -134,7 +135,7 @@ def read_TH_inp(filename):
     r"time   value \n" on each line, with no header lines.
 
     Output = 2 lists of values as floats, first is time, second is acc value
-    Extract time histories from text files in fortran format.
+    Extract time histories.
 
     Parameters
     ----------
@@ -291,6 +292,46 @@ def read_rsp(filename):
     file.close()
 
     return tp, rs
+
+
+def read_peer_record(filename):
+    """Read time history file from PEER Strong Motion Record
+    Database.
+
+    :param filename: string with file location of record.
+    :return: dictionary with time history record and peroperties
+    """
+
+    eq_record = {}
+
+    with open(filename, 'r') as file:
+        # Skip the first header line
+        file.readline()
+
+        line2 = file.readline()
+        props2 = line2.split(',')
+        eq_record.update(
+            dict(zip(['name', 'date', 'array', 'direction'], props2))
+        )
+        # remove '\n' from end of direction string
+        eq_record['direction'] = eq_record['direction'].split()[0]
+
+        line3 = file.readline()
+        props3 = line3.split()
+        eq_record['type'] = props3[0].lower()
+        eq_record['units'] = props3[-1].lower()
+
+        line4 = file.readline()
+        eq_record['npts'] = int(re.findall('(?<=NPTS=)[\d ]+(?=,)', line4)[0])
+        eq_record['dt'] = float(re.findall('(?<=DT=).+(?=SEC)', line4)[0])
+
+        # Read in time history
+        th = []
+        for line in file:
+            th += list(map(float, line.split()))
+        eq_record['th'] = th
+
+    return eq_record
 
 
 def read_curve(filename, header=8):
