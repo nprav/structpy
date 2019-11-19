@@ -14,7 +14,7 @@ import re
 
 # %% Read functions
 
-def read_shk_ahl(filename, header=3):
+def read_shk_ahl(filename, header=3, get_dt=False):
     '''Read SHAKE .ahl time history output files.
 
     Parameters
@@ -26,25 +26,33 @@ def read_shk_ahl(filename, header=3):
         Number of lines to skip at the start of the file.
         Should be an integer greater than 0. Defaults to 3.
 
+    get_dt : bool, optional
+        if True, also extracts the timestep of the time history
+        if False, does not extract the timestep
+
     Returns
     -------
     ahl : 1D list of floats
         List of acceleration values from the .ahl file.
+
+    dt : float, output only if get_dt = True
     '''
 
-    file = open(filename)
-    ahl = []
-    file.seek(0, 0)
-    s = False
-    for i, line in enumerate(file):
-        if i >= header:
-            s = True
-        if s:
-            ahl += [float(k) for k in line.split()]
-
-    file.close()
-
-    return ahl
+    with open(filename) as file:
+        ahl = []
+        file.seek(0, 0)
+        s = False
+        for i, line in enumerate(file):
+            if i == 1:
+                dt = float(line.split()[2])
+            if i >= header:
+                s = True
+            if s:
+                ahl += [float(k) for k in line.split()]
+    if get_dt:
+        return ahl, dt
+    else:
+        return ahl
 
 
 def read_dmd_acc(filename):
