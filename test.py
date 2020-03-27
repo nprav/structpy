@@ -13,6 +13,9 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from rc import RcSection, get_beta_1, rebar_force, conc_force
+from numpy.fft import rfft, rfftfreq, irfft
+
+from timehistory import low_pass_filter
 
 # %% Global variables
 steel_sy = 500
@@ -257,6 +260,28 @@ class TestResponseSpectrum(unittest.TestCase):
 
 class TestBroadbanding(unittest.TestCase):
     pass
+
+
+# %% Testcases for timehistory.py
+
+
+class TestTimeHistory(unittest.TestCase):
+    """Unittest Testcase to test the timehistory.py module that contains
+     utility functions for generic time history analyses.
+     """
+
+    def setUp(self):
+        """Initial definitions to set up subsequent tests.
+        """
+        self.time = np.linspace(0,1,1000)
+
+    def test_low_pass1(self):
+        y = 1*np.sin(2*np.pi*self.time*2) + 3*np.sin(2*np.pi*self.time*10)
+        lp_frq = 5
+        y_filt = low_pass_filter(y, lp_frq, time=self.time, zero_pad=False)
+        true_y_filt = 1*np.sin(2*np.pi*self.time*2)
+        diff = np.mean(np.abs(y_filt-true_y_filt))
+        self.assertLess(diff, 0.01)
 
 
 if __name__ == '__main__':
