@@ -78,14 +78,66 @@ def low_pass_filter(signal, lp_frq, dt=0.005, time=None, zero_pad=True):
     return lp_signal
 
 
-def animate_plot_2d(x, y):
-    def update_line(frame, line):
+def animate_plot_2d(x, y, num_frames=100, anim_length=5, figsize=None, title=None,
+                    xlabel='x', ylabel='y', l_kwargs=None, m_kwargs=None):
+    """
+    Simple Matplotlib wrapper function that generates a 2d scatter plot animation with
+    1d x and y data.
+
+    :param x: 1d list-like x-axis data.
+    :param y: 1d list-like y-axis data.
+    :param num_frames: int - number of frames in the animation.
+    :param anim_length: float - the length of the animation in seconds.
+    :param figsize: (int, int) - tuple with typical matplotlib figsize
+                    specification
+    :param title: string - title of the plot. Defaults to None.
+    :param xlabel: string - x-axis label of the plot. Defaults to 'x'.
+    :param ylabel: string - y-axis label of the plot. Defaults to 'y'.
+    :param l_kwargs: dict - Matplotlib Line2D properties to be used as
+                    keyword arguments for the main line plot.
+    :param m_kwargs: dict - Matplotlib Line2D properties to be used as
+                    keyword arguments for the single marker at end of
+                    the plot in each frame.
+    :return: IPython.display HTML object with a video of the animation.
+    """
+
+    # Default arguments:
+    if l_kwargs is None:
+        l_kwargs = {}
+    if m_kwargs is None:
+        m_kwargs = {}
+
+    # Set up the figure and axes
+    if figsize is None:
+        fig1 = plt.figure()
+    else:
+        fig1 = plt.figure(figsize=figsize)
+    axis = fig1.gca()
+    axis.set_xlabel(xlabel)
+    axis.set_ylabel(ylabel)
+    if title is not None:
+        axis.set_title(title)
+
+    # Set up the matplotlib artists
+    l, = axis.plot([], [], **l_kwargs)
+    m, = axis.plot([], [], 'o', **m_kwargs)
+    axis.set_xlim((x.min(), x.max()))
+    axis.set_ylim((y.min(), y.max()))
+
+    # Define the animation parameters
+    step = len(x)//(num_frames-1)
+    frames = list(range(0, len(x), step))
+    if not frames[-1] == len(x)-1:
+        frames.append(len(x)-1)
+    interval = anim_length/num_frames*1000
+
+    # Define artist update function
+    def update_line(frame, line, marker):
         line.set_data(x[:frame], y[:frame])
-        return line,
-    fig1 = plt.figure()
-    l, = plt.plot([], [])
-    plt.xlim((x.min(), x.max()))
-    plt.ylim((y.min(), y.max()))
-    line_ani = animation.FuncAnimation(fig1, update_line, min(len(x), 100),
-                                       fargs=(l,), interval=50, blit=True)
+        marker.set_data(x[frame], y[frame])
+        return line, marker
+
+    # Generate the html animation
+    line_ani = animation.FuncAnimation(fig1, update_line, frames,
+                                       fargs=(l, m), interval=interval, blit=True)
     return HTML(line_ani.to_jshtml())
