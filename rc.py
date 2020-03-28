@@ -4,7 +4,7 @@ Created on Sun Sep  1 07:52:43 2019
 
 @author: Praveer Nidamaluri
 
-Module for analyzing Reingforced Concrete sections. Primary aim
+Module for analyzing Reinforced Concrete sections. Primary aim
 is to make interaction diagrams.
 """
 
@@ -12,8 +12,6 @@ is to make interaction diagrams.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
-from scipy.optimize import minimize
 
 # %% Define global properties
 
@@ -59,7 +57,7 @@ class RcSection(object):
 
     def get_extents(self):
         """Return the dimensions of the defined section.
-        Assuemes a simple rectangular cross-section.
+        Assumes a simple rectangular cross-section.
         """
         print("Section Size : ({}, {})\n".format(
             self.width, self.thk))
@@ -165,7 +163,6 @@ class RcSection(object):
             M = self.get_M((top_str, bot_str))
             id_neg.loc[len(id_neg)] = [P, M, top_str, bot_str]
 
-
         # Setup postiive side of interaction diagram
         top_str = top_str_limits[1]
         start_bot_str = bot_str_limits[1] / alpha * (alpha - self.thk)
@@ -219,7 +216,7 @@ class RcSection(object):
                 rebar_force, axis=1, args=(self.thk, e_top, e_bot),
                 **self.conc_matprops,
             )
-            rebar_cent = self.rebars['y'] - self.thk/2
+            rebar_cent = self.rebars['y'] - self.thk / 2
             rebar_M = rebar_P * rebar_cent
             M = np.sum(rebar_M)
         else:
@@ -245,9 +242,9 @@ class RcSection(object):
     def get_strain_limits(self):
         if len(self.rebars) > 0:
             min_top_str = (-self.rebars['sy'] / self.rebars['Es'] - self.conc_matprops['e_fc']) \
-                          / self.rebars['y'] * self.thk
-            min_bot_str = (-self.rebars['sy']/self.rebars['Es'] - self.conc_matprops['e_fc']) \
-                          / (self.rebars['y'] - self.thk) * (-self.thk) + self.conc_matprops['e_fc']
+                / self.rebars['y'] * self.thk
+            min_bot_str = (-self.rebars['sy'] / self.rebars['Es'] - self.conc_matprops['e_fc']) \
+                / (self.rebars['y'] - self.thk) * (-self.thk) + self.conc_matprops['e_fc']
             top_str_limits = (min_top_str.min(), self.conc_matprops['e_fc'])
             bot_str_limits = (min_bot_str.min(), self.conc_matprops['e_fc'])
 
@@ -276,6 +273,7 @@ class WBeam(RcSection):
 
 class CustomBeam(RcSection):
     pass
+
 
 # %% Define miscellaneous utility functions
 
@@ -353,10 +351,10 @@ def conc_force(thk, width, e_top, e_bot, beta_1, fc=35, e_fc=0.003):
             conc_P_centroid = 0
 
         else:
-            max_conc_stress = fc * min(e_top, e_fc)/e_fc
+            max_conc_stress = fc * min(e_top, e_fc) / e_fc
             abs_c_from_top = thk - c_from_bot
             abs_a_from_top = min(beta_1 * abs_c_from_top, thk)
-            conc_P_centroid = direction_factor * (thk/2 - abs_a_from_top/2)
+            conc_P_centroid = direction_factor * (thk / 2 - abs_a_from_top / 2)
             conc_P = abs_a_from_top * 0.85 * max_conc_stress * width
 
         return conc_P, conc_P_centroid

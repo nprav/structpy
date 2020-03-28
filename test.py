@@ -12,19 +12,22 @@ Script for testing other scripts in the module.
 import unittest
 from unittest.mock import patch
 import numpy as np
-from rc import RcSection, get_beta_1, rebar_force, conc_force
-from numpy.fft import rfft, rfftfreq, irfft
 
-from timehistory import low_pass_filter
+# %% Import structpy modules for testing
+
+from rc import RcSection, get_beta_1, rebar_force, conc_force
+from timehistory import get_rfft, low_pass_filter
+
 
 # %% Global variables
 steel_sy = 500
 steel_Es = 200000
 
 
-# %% Testcases for rc.py
+# %% Test cases for rc.py
 
 
+# noinspection PyPep8Naming
 class TestRC(unittest.TestCase):
     """Unittest Testcase to test the rc.py module that contains
     utility functions for reinforced concrete sections.
@@ -89,25 +92,26 @@ class TestRC(unittest.TestCase):
         test_max_compression, efc = self.rc.get_max_compression_P()
         rebar_area = np.pi / 4 * self.rebar_od ** 2
         max_compression = steel_sy * rebar_area + \
-                          0.85 * self.fc * (self.width * self.thk - 2 * rebar_area)
+            0.85 * self.fc * (self.width * self.thk - 2 * rebar_area)
         self.assertEqual(max_compression, test_max_compression)
 
+    # noinspection PyPep8Naming
     def test_get_P(self):
         rebar_area = np.pi / 4 * self.rebar_od ** 2
         max_compression = (self.width * self.thk - 2 * rebar_area) * 0.85 * self.fc + \
-                          rebar_area * steel_sy
+            rebar_area * steel_sy
         max_tension = -2 * rebar_area * steel_sy
         test_e_top = -0.005
         test_e_bot = 0.003
         c = -0.003 / (test_e_top - test_e_bot) * self.thk
         a = self.beta_1 * c
         test_e_rebar1 = test_e_bot + \
-                        self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
+            self.rebar_pos_y1 / self.thk * (test_e_top - test_e_bot)
         test_e_rebar2 = test_e_bot + \
-                        self.rebar_pos_y2 / self.thk * (test_e_top - test_e_bot)
+            self.rebar_pos_y2 / self.thk * (test_e_top - test_e_bot)
         test_P_rebar2 = rebar_area * (min(test_e_rebar2 * steel_Es, steel_sy) - 0.85 * self.fc)
         test_P = 0.85 * a * self.fc * self.width + test_P_rebar2 + \
-                 max(test_e_rebar1 * steel_Es, -steel_sy) * rebar_area
+            max(test_e_rebar1 * steel_Es, -steel_sy) * rebar_area
         test_cases = [(0.003, 0.003, max_compression),
                       (-0.003, -0.003, max_tension),
                       (test_e_top, test_e_bot, test_P),
@@ -140,7 +144,6 @@ class TestRC(unittest.TestCase):
         # Test output
         self.assertEqual((min_top_str, 0.003), strain_limit_top)
         self.assertEqual((min_bot_str, 0.003), strain_limit_bot)
-
 
     def test_rebar_force(self):
         rebar = {'area': 10, 'y': 2, 'Es': 1,
@@ -218,7 +221,7 @@ class TestRC(unittest.TestCase):
         conc_P = abs_a_from_bot * 0.85 * self.fc * self.width
         conc_centroid = -(self.thk / 2 - abs_a_from_bot / 2)
         tens_rebar_strain = self.rebar_pos_y1 / self.thk * (test_e_top3 - test_e_bot3) + \
-                            test_e_bot3
+            test_e_bot3
         tens_rebar_P = max(tens_rebar_strain, -steel_sy / steel_Es) * steel_Es * rebar_area
         tens_rebar_centroid = self.rebar_pos_y1 - self.thk / 2
         comp_rebar_P = -0.85 * self.fc * rebar_area
@@ -235,7 +238,7 @@ class TestRC(unittest.TestCase):
         conc_P = abs_a_from_top * 0.85 * self.fc * self.width
         conc_centroid = self.thk / 2 - abs_a_from_top / 2
         tens_rebar_strain = self.rebar_pos_y2 / self.thk * (test_e_top4 - test_e_bot4) + \
-                            test_e_bot4
+            test_e_bot4
         tens_rebar_P = max(tens_rebar_strain, -steel_sy / steel_Es) * steel_Es * rebar_area
         tens_rebar_centroid = self.rebar_pos_y2 - self.thk / 2
         comp_rebar_P = -0.85 * self.fc * rebar_area
@@ -251,7 +254,7 @@ class TestRC(unittest.TestCase):
             self.assertEqual(M, self.rc.get_M((e_top, e_bot)), msg=msg_string)
 
 
-# %% Testcases for resp_spect.py
+# %% Test cases for resp_spect.py
 
 
 class TestResponseSpectrum(unittest.TestCase):
@@ -262,20 +265,26 @@ class TestBroadbanding(unittest.TestCase):
     pass
 
 
-# %% Testcases for timehistory.py
+# %% Test cases for timehistory.py
 
 
 class TestTimeHistory(unittest.TestCase):
-    """Unittest Testcase to test the timehistory.py module that contains
+    """Unittest Test Case to test the timehistory.py module that contains
      utility functions for generic time history analyses.
      """
 
     def setUp(self):
         """Initial definitions to set up subsequent tests.
         """
-        self.time = np.linspace(0,1,1000)
+        self.time = np.linspace(0, 1, 1000)
 
-    def test_low_pass1(self):
+    def test_get_rfft(self):
+        y = 1*np.sin(2*np.pi*self.time*2) + 3*np.sin(2*np.pi*self.time*10)
+        frq, fft = get_rfft(y, time=self.time, zero_pad=False)
+        max_frq = frq[np.argmax(fft)]
+        self.assertAlmostEqual(max_frq, 10, 1)
+
+    def test_low_pass(self):
         y = 1*np.sin(2*np.pi*self.time*2) + 3*np.sin(2*np.pi*self.time*10)
         lp_frq = 5
         y_filt = low_pass_filter(y, lp_frq, time=self.time, zero_pad=False)
