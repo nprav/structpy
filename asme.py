@@ -3,7 +3,7 @@ Created: oct 2018
 Latest update:  Oct 2018
 @author: Praveer Nidamaluri
 
-Module for extractracting material property data from ASME BPVC Section II excel tables
+Module for extracting material property data from ASME BPVC Section II excel tables
 '''
 
 import pandas as pd
@@ -12,13 +12,15 @@ import numpy as np
 import os
 import re
 
-yld_file = [file for file in os.listdir('ASME') if 'yield' in file.lower()][0]
-ult_file = [file for file in os.listdir('ASME') if 'tensile' in file.lower()][0]
-yld_file_path = os.path.join('ASME',yld_file)
-ult_file_path = os.path.join('ASME',ult_file)
+module_path = os.path.dirname(__file__)
+asme_path = os.path.join(module_path, 'ASME')
+yld_file = [file for file in os.listdir(asme_path) if 'yield' in file.lower()][0]
+ult_file = [file for file in os.listdir(asme_path) if 'tensile' in file.lower()][0]
+yld_file_path = os.path.join(asme_path, yld_file)
+ult_file_path = os.path.join(asme_path, ult_file)
 
 
-def sy(crit_temps = None, condensed = False, imp_cols = [], **kwargs):
+def sy(crit_temps = [], condensed = False, imp_cols = [], **kwargs):
     '''
     Function to filter and interpolate/extrapolate ASME yield strength data. The function assumes 
     that the ASME material property information is available in an excel file with the path stored 
@@ -114,7 +116,7 @@ def sy(crit_temps = None, condensed = False, imp_cols = [], **kwargs):
     return final_df
 
 
-def su(crit_temps = None, condensed = False, imp_cols = [], **kwargs):
+def su(crit_temps = [], condensed = False, imp_cols = [], **kwargs):
     '''
     Function to filter and interpolate/extrapolate ASME ultimate strength data. The function assumes 
     that the ASME material property information is available in an excel file with the path stored 
