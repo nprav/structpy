@@ -13,8 +13,11 @@ from numpy.fft import rfft, rfftfreq, irfft
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
+import matplotlib
 
 # %% Define global properties
+# Increase animation size limit:
+matplotlib.rcParams['animation.embed_limit'] = 2**128
 
 # ## Time History Analysis Utility Functions
 
