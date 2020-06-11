@@ -18,7 +18,7 @@ from scipy.optimize import curve_fit, minimize
 # %% Response Spectrum Generation
 
 def get_step_matrix(w, zeta, dt):
-    '''
+    """
     Calculate the A, B matrices from [1] based on the input
     angular frequency `w`, critical damping ratio, `zeta`,
     and timestep, `dt`.
@@ -50,7 +50,7 @@ def get_step_matrix(w, zeta, dt):
     .. [1] Nigam, Jennings, April 1969. Calculation of response Sepctra
         from Stong-Motion Earthquake Records. Bulletin of the Seismological
         Society of America. Vol 59, no. 2.
-    '''
+    """
 
     A = np.zeros((2, 2))
     B = np.zeros((2, 2))
@@ -79,9 +79,15 @@ def get_step_matrix(w, zeta, dt):
 
 
 def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
-                    plot=False, max_nyq=500, accuracy=0.2):
+                    plot=False):
     '''
     Generate acceleration response spectrum by the step-by-step method [1].
+    The algorithm is programmed to match that from SHAKE2000. No up-sampling
+    is performed to get accurate results for frequencies higher than
+    the nyquist frequency from the input acceleration time history.
+    For physically accurate spectral content at frequencies higher than
+    the nyquist frequency, use `fft_resp_spect`, or use `scipy.signal.resample`
+    prior to inputting the acceleration time history.
 
     Output frequencies are loglinearly spaced as follows:
         - [0.1Hz, 1Hz] : 12 points
@@ -111,20 +117,6 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
             - plot = True : the RS is plotted.
             - plot = False : the RS is not plotted.
 
-    max_nyq : numeric, optional
-        Controls the the minimum timestep used for RS generation.
-        Frequency content approx. under `max_nyq/2.5` will be
-        accurately captured. Defaults to 500Hz. The value must
-        be increased if there is significant frequency content above
-        200Hz.
-
-    accuracy : float between  0 and 1, optional
-        Parameter that defines the trade-off between speed and accuracy. To
-        improve speed, the algorithm resamples the input TH at lower
-        frequencies when calculated lower frequency response. This can
-        sometimes cause marginal deviations in the response when accuracy = 0.
-        There are no deviations when accuracy = 1. Defaults to 0.2.
-
     Returns
     -------
     rs : 1D ndarray
@@ -135,19 +127,12 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
 
     References
     ----------
-    .. [1] Nigam, Jennings, April 1969. Calculation of response Sepctra
-        from Stong-Motion Earthquake Records. Bulletin of the Seismological
+    .. [1] Nigam, Jennings, April 1969. Calculation of response Spectra
+        from Strong-Motion Earthquake Records. Bulletin of the Seismological
         Society of America. Vol 59, no. 2.
     '''
 
     t0 = timer.clock()
-
-    # Set up speed vs accuracy variable:
-    try:
-        accuracy = max(min(1, accuracy), 0)
-        frq_mult = 5 + 10*accuracy
-    except Exception:
-        frq_mult = 7
 
     # Set up list of frequencies on which to calculate response spectra:
     frq = np.logspace(-1, 0, num=12, endpoint=False)
@@ -162,8 +147,8 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
     w = frq*2*np.pi
     rs = 0*w
 
-    # Define minimum timestep based on nyquist frequency input
-    dt_max = 1/(2*max_nyq)
+    # Define timestep from input signal
+    dt = time_a[1] - time_a[0]
 
     # Define utility function to be used with itertools.accumulate
     def func(x, a):
@@ -171,17 +156,11 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
 
     # Calculate response for a spring with each wn
     for k, wn in enumerate(w):
-        # Interpolate time/acceleration vector to reduce total
-        # number of calculations
-        nyq = max(frq_mult*frq[k], 20)
-        dt = max(1/(2*nyq), dt_max)
-        dt_tm = np.arange(0, time_a[-1], dt)
-        dt_acc = np.interp(dt_tm, time_a, acc)
 
         # Calculate response acceleration time history
         A, B = get_step_matrix(wn, zeta, dt)
-        act = np.column_stack((dt_acc[:-1], dt_acc[1:]))
-        act = np.append(np.array([[0, 0], [0, dt_acc[0]]]),
+        act = np.column_stack((acc[:-1], acc[1:]))
+        act = np.append(np.array([[0, 0], [0, acc[0]]]),
                         act,
                         axis=0)
         x = np.array(list(accumulate(act, func)))
@@ -210,16 +189,18 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
 
 
 def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
-                   plot=False, max_nyq=500, accuracy=0.2):
+                   plot=False):
     '''
     Generate acceleration response spectrum using a frequency domain
-    method.
+    method. This is physically accurate if the true acceleration time
+    history has no frequency content higher than the nyquist frequency
+    of the input acceleration.
 
     Output frequencies are loglinearly spaced as follows:
-        - [0.1Hz, 1Hz] : 12 points
+        - [0.1Hz, 1Hz] : 30 points
         - [1Hz, 10Hz] : 50 points
-        - [10Hz, 100Hz] : 25 points
-        - [100Hz, 1000Hz] : 15 points (only if `ext` is True)
+        - [10Hz, 100Hz] : 50 points
+        - [100Hz, 1000Hz] : 30 points (only if `ext` is True)
 
     Parameters
     ----------
@@ -243,20 +224,6 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
             - plot = True : the RS is plotted.
             - plot = False : the RS is not plotted.
 
-    max_nyq : numeric, optional
-        Controls the the minimum timestep used for RS generation.
-        Frequency content approx. under `max_nyq/2.5` will be
-        accurately captured. Defaults to 500Hz. The value must
-        be increased if there is significant frequency content above
-        200Hz.
-
-    accuracy : float between  0 and 1, optional
-        Parameter that defines the trade-off between speed and accuracy. To
-        improve speed, the algorithm resamples the input TH at lower
-        frequencies when calculated lower frequency response. This can
-        sometimes cause marginal deviations in the response when accuracy = 0.
-        There are no deviations when accuracy = 1. Defaults to 0.2.
-
     Returns
     -------
     rs : 1D ndarray
@@ -268,56 +235,48 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
 
     t0 = timer.clock()
 
-    # Set up speed vs accuracy variable:
-    try:
-        accuracy = max(min(1, accuracy), 0)
-        frq_mult = 5 + 10*accuracy
-    except Exception:
-        frq_mult = 7
-
     # Set up list of frequencies on which to calculate response spectra:
-    frq = np.logspace(-1, 0, num=12, endpoint=False)
+    frq = np.logspace(-1, 0, num=30, endpoint=False)
     frq = np.append(frq, np.logspace(0, 1, num=50, endpoint=False))
     if ext:
-        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=False))
-        frq = np.append(frq, np.logspace(2, 3, num=15, endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=50, endpoint=False))
+        frq = np.append(frq, np.logspace(2, 3, num=30, endpoint=True))
     else:
-        frq = np.append(frq, np.logspace(1, 2, num=25, endpoint=True))
+        frq = np.append(frq, np.logspace(1, 2, num=50, endpoint=True))
 
     # Instantiate angular frequency and spectral acceleration arrays
     w = frq*2*np.pi
     rs = 0*w
 
-    # Define minimum timestep based on nyquist frequency input
-    dt_max = 1/(2*max_nyq)
+    # Define minimum timestep from input signal
+    dt_min = time_a[1] - time_a[0]
+
+    # Calculate n, the integer to determine 0 padding at the end
+    # of the time history; making n a power of 2 improves the
+    # efficiency of the fft algorithm
+    n = int(2 ** (np.ceil(np.log(1.5 * len(acc)) / np.log(2))))
+
+    # Get FFT of input acceleration
+    xgfft = np.fft.rfft(acc, n)
+    frqt = np.fft.rfftfreq(n, d=dt_min)
 
     # Calculate response for a spring with each wn
     for k, wn in enumerate(w):
-        # Interpolate time/acceleration vector to reduce
-        # total number of calculations
-        nyq = max(frq_mult*frq[k], 20)
-        dt = max(1/(2*nyq), dt_max)
-        dt_tm = np.arange(0, time_a[-1], dt)
-        dt_acc = np.interp(dt_tm, time_a, acc)
 
-        # Calculate n, the integer to determine 0 padding at the end
-        # of the time history; making n a power of 2 improves the
-        # efficiency of the fft algorithm
-        n = int(2**(np.ceil(np.log(1.5*len(dt_acc))/np.log(2))))
+        # Angular frequencies of fft
+        wf = frqt*2*np.pi
 
-        # Solve for acceleration response
-        xgfft = np.fft.rfft(dt_acc, n)
-        frqt = np.fft.rfftfreq(n, d=dt_tm[-1]/len(dt_tm))
-        xfft = 0*xgfft
-        accfft = 0*xgfft
+        # Displacement of spring mass (fourier terms)
+        xfft = -xgfft/(-wf**2 + 2*zeta*wn*1j*wf + wn**2)
 
-        for i, f in enumerate(frqt):
-            wf = f*2*np.pi
-            xfft[i] = -xgfft[i]/(-wf**2 + 2*zeta*wn*1j*wf + wn**2)
-            accfft[i] = -xfft[i]*wf**2
+        # Relative acceleration of spring mass (fourier terms)
+        accfft = -xfft*wf**2
 
+        # Relative acceleration of spring mass
         a = np.fft.irfft(accfft)
-        abs_a = a[:len(dt_tm)] + dt_acc
+
+        # Absolute acceleration of spring mass, and final response
+        abs_a = a[:len(time_a)] + acc
         rs[k] = np.max(np.absolute(abs_a))
 
     t1 = timer.clock()

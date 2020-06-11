@@ -2,14 +2,21 @@
   <dictionary name="pnidamaluri">
     <words>
       <w>asme</w>
+      <w>broadbanded</w>
+      <w>broadbanding</w>
       <w>conc</w>
       <w>filt</w>
+      <w>fpts</w>
+      <w>loglinear</w>
+      <w>maxiter</w>
       <w>ndarray</w>
       <w>nidamaluri</w>
       <w>npts</w>
+      <w>nyquist</w>
       <w>praveer</w>
       <w>rebar</w>
       <w>rfft</w>
+      <w>srss</w>
       <w>structpy</w>
       <w>timehistory</w>
       <w>timestep</w>
