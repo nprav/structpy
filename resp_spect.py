@@ -82,12 +82,14 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
                     plot=False):
     '''
     Generate acceleration response spectrum by the step-by-step method [1].
-    The algorithm is programmed to match that from SHAKE2000. No up-sampling
-    is performed to get accurate results for frequencies higher than
-    the nyquist frequency from the input acceleration time history.
-    For physically accurate spectral content at frequencies higher than
-    the nyquist frequency, use `fft_resp_spect`, or use `scipy.signal.resample`
-    prior to inputting the acceleration time history.
+    The algorithm is programmed to match that from SHAKE2000. The theory behind
+    the algorithm assumes a 'segmentally-linear' acceleration time history (TH).
+    Hence, the implicit assumption is that the time history nyquist frequency is
+    much higher than the highest frequency within the TH.
+
+    Use the `fft_resp_spect` method if there is frequency content close to the
+    nyquist frequency. Or, use `scipy.signal.resample` to up-sample the acc. TH
+    prior to using `step_resp_spect`.
 
     Output frequencies are loglinearly spaced as follows:
         - [0.1Hz, 1Hz] : 12 points
