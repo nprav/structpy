@@ -13,6 +13,7 @@ from itertools import accumulate
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit, minimize
+from scipy.signal import resample
 
 
 # %% Response Spectrum Generation
@@ -256,11 +257,18 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
     # Calculate n, the integer to determine 0 padding at the end
     # of the time history; making n a power of 2 improves the
     # efficiency of the fft algorithm
-    n = int(2 ** (np.ceil(np.log(1.5 * len(acc)) / np.log(2))))
+    n = len(acc)
+    n_fft = int(2 ** (np.ceil(np.log(1.5 * n) / np.log(2))))
+
+    # Get n for upsampling by sinc-interpolating so there are
+    # `multiplier` times as many points
+    multiplier = 10
+    n_resample = multiplier*len(time_a)
+    acc_resample = resample(acc, n_resample)
 
     # Get FFT of input acceleration
-    xgfft = np.fft.rfft(acc, n)
-    frqt = np.fft.rfftfreq(n, d=dt_min)
+    xgfft = np.fft.rfft(acc, n_fft)
+    frqt = np.fft.rfftfreq(n_fft, d=dt_min)
 
     # Calculate response for a spring with each wn
     for k, wn in enumerate(w):
@@ -274,11 +282,13 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
         # Relative acceleration of spring mass (fourier terms)
         accfft = -xfft*wf**2
 
-        # Relative acceleration of spring mass
-        a = np.fft.irfft(accfft)
+        # Get relative acceleration of spring mass
+        # Up-sample so that the final time history is sinc-
+        # interpolated, and matches the dt of `acc_resample`
+        a = np.fft.irfft(accfft, n=multiplier*n_fft) * multiplier
 
         # Absolute acceleration of spring mass, and final response
-        abs_a = a[:len(time_a)] + acc
+        abs_a = a[:n_resample] + acc_resample
         rs[k] = np.max(np.absolute(abs_a))
 
     t1 = timer.clock()
