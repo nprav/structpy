@@ -1,12 +1,14 @@
 <component name="ProjectDictionaryState">
   <dictionary name="pnidamaluri">
     <words>
+      <w>accfft</w>
       <w>asme</w>
       <w>broadbanded</w>
       <w>broadbanding</w>
       <w>conc</w>
       <w>filt</w>
       <w>fpts</w>
+      <w>frqt</w>
       <w>loglinear</w>
       <w>maxiter</w>
       <w>ndarray</w>
@@ -15,11 +17,14 @@
       <w>nyquist</w>
       <w>praveer</w>
       <w>rebar</w>
+      <w>resample</w>
       <w>rfft</w>
       <w>srss</w>
       <w>structpy</w>
       <w>timehistory</w>
       <w>timestep</w>
+      <w>xfft</w>
+      <w>xgfft</w>
     </words>
   </dictionary>
 </component>

@@ -8,7 +8,7 @@ Module for generating and broadbanding acceleration response spectra.
 
 # %% Import Necessary Modules
 import numpy as np
-import time as timer
+from time import perf_counter
 from itertools import accumulate
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
@@ -135,7 +135,7 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
         Society of America. Vol 59, no. 2.
     '''
 
-    t0 = timer.clock()
+    t0 = perf_counter()
 
     # Set up list of frequencies on which to calculate response spectra:
     frq = np.logspace(-1, 0, num=12, endpoint=False)
@@ -171,11 +171,11 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True,
         z = np.dot(x, temp)
         rs[k] = np.max(np.absolute(z))
 
-    t1 = timer.clock()
+    t1 = perf_counter()
     t_net = t1 - t0
 
-    print("RS done. Time taken = ", t_net, "\ntime per iteration = ",
-          t_net/len(w))
+    print("RS done. Time taken = {:.5f}s".format(t_net),
+          "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
 
     # Plot RS if required
     if plot:
@@ -236,7 +236,7 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
         Array with frequencies in Hz.
     '''
 
-    t0 = timer.clock()
+    t0 = perf_counter()
 
     # Set up list of frequencies on which to calculate response spectra:
     frq = np.logspace(-1, 0, num=30, endpoint=False)
@@ -291,11 +291,11 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True,
         abs_a = a[:n_resample] + acc_resample
         rs[k] = np.max(np.absolute(abs_a))
 
-    t1 = timer.clock()
+    t1 = perf_counter()
     t_net = t1 - t0
 
-    print("RS done. Time taken = ", t_net,
-          "\ntime per iteration = ", t_net/len(w))
+    print("RS done. Time taken = {:.5f}s".format(t_net),
+          "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
 
     # Plot RS if required
     if plot:

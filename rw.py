@@ -213,7 +213,7 @@ def read_csv(filename, header=1):
 
 
 def read_csv_multi(filename, header=1):
-    '''Reads .csv files with just multiple columns.
+    '''Reads .csv files with multiple columns.
 
     Parameters
     ----------
@@ -243,7 +243,7 @@ def read_csv_multi(filename, header=1):
         if i >= header:
             s = True
         if s:
-            num_cols = len(line.split(',')) - 2
+            num_cols = len(re.split("[,\n]+", line)) - 2
             break
 
     acc = []
