@@ -131,7 +131,10 @@ class TestRC(unittest.TestCase):
     def test_get_beta_1(self):
         self.assertEqual(0.65, get_beta_1(100))
         self.assertEqual(0.85, get_beta_1(10))
-        self.assertEqual(0.75, get_beta_1(42))
+        self.assertAlmostEqual(0.75, get_beta_1(42), places=2)
+        self.assertEqual(0.85, get_beta_1(1000, metric=False))
+        self.assertAlmostEqual(0.80, get_beta_1(5000, metric=False), places=2)
+        self.assertEqual(0.65, get_beta_1(9000, metric=False))
 
     def test_get_strain_limits(self):
         # Calculate top strain limit

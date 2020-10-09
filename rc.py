@@ -36,7 +36,7 @@ class RcSection(object):
     rectangle_kwargs = {'color': 'c'}
     circle_kwargs = {'color': 'k'}
 
-    def __init__(self, width=100, thk=200, fc=35, e_fc=0.003):
+    def __init__(self, width=100, thk=200, fc=35, e_fc=0.003, metric=True):
         """Instantiate concrete section with a width (x), thickness (y),
         concrete compressive strength, and failure strain.
         Make sure units are consistent. Defaults to 100mm wide, 200mm thick,
@@ -53,7 +53,7 @@ class RcSection(object):
 
         # Define empty dataframe for interaction diagram
         self.id = pd.DataFrame(columns=RcSection.id_column_labels)
-        self.beta_1 = get_beta_1(fc)
+        self.beta_1 = get_beta_1(fc, metric=metric)
 
     def get_extents(self):
         """Return the dimensions of the defined section.
@@ -66,9 +66,10 @@ class RcSection(object):
     def add_rebar(self, D=10, x=0, y=175, sy=500,
                   Es=200000, compression=False):
         """Add a single rebar to the section, defined by diameter,
-        x position, y position, yield strength, Young's modulus,
-        and a boolean, `compression`, that defines if the rebar is
-        active in compression or not.
+        x position relative to the center of the section, 
+        y position relative to the base of the section, 
+        yield strength, Young's modulus, and a boolean, `compression`, 
+        that defines if the rebar is active in compression or not.
 
         Make sure units are consistent with concrete section material
         property inputs.
@@ -282,18 +283,20 @@ def circle_area(diam):
     return np.pi / 4 * diam ** 2
 
 
-def get_beta_1(fc):
+def get_beta_1(fc, metric=True):
     """Get the beta_1 parameter for the Whitney Stress Block
         simplification (ACI-318 code section 10.2.7)
     :param fc: concrete compressive strength in MPa
+    :param metric: Boolean. If metric, assume fc is in MPa, 
+                    otherwise asume fc is in psi
     :return: beta_1 parameter
     """
-    if fc <= 28:
-        beta_1 = 0.85
-    elif 28 < fc <= 56:
-        beta_1 = 0.85 - 0.05 * (fc - 28) / 7
-    else:
-        beta_1 = 0.65
+    if metric:
+        # convert from psi to MPa
+        fc = fc / (6.895e-3)
+    beta_1 = 0.85 - 0.05 * (fc - 4000) / 1000
+    beta_1 = max(beta_1, 0.65)
+    beta_1 = min(beta_1, 0.85)
     return beta_1
 
 

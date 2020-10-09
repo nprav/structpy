@@ -22,7 +22,7 @@ matplotlib.rcParams['animation.embed_limit'] = 2**128
 # ## Time History Analysis Utility Functions
 
 
-def get_rfft(signal, dt=0.005, time=None, zero_pad=True):
+def get_rfft(signal, dt=0.005, time=None, zero_pad=True, zero_N=5):
     """
     Function to return the real absolute fft and frequencies of
     a given signal.
@@ -35,6 +35,9 @@ def get_rfft(signal, dt=0.005, time=None, zero_pad=True):
                     length `2*len(signal)`. This should be used if the input
                     is non-repetitive. IF `False`, the input is not zero-padded.
                     Hence, the fft assumes that the signal repeats.
+    :param zero_N:  float. If `zero_pad` is True, then the total length of the 
+                    signal input to the FFT is zero_N * len(signal). The 
+                    extra signal content is all zeros.
     :return:
         - frq - 1d ndarray with frequencies.
         - signal_fft - 1d ndarray with absolute fft values.
@@ -43,7 +46,12 @@ def get_rfft(signal, dt=0.005, time=None, zero_pad=True):
     if time is not None:
         dt = time[1]-time[0]
     if zero_pad:
-        n = 3*len(signal)
+        extra = np.ones((zero_N-1)*len(signal))*signal[-1]
+        # )np.linspace(
+        #     signal[-1], signal[0], (zero_N-1)*len(signal)
+        #     )
+        signal = np.append(signal, extra)
+        n = zero_N*len(signal)
     else:
         n = len(signal)
     frq = rfftfreq(n, d=dt)
