@@ -8,20 +8,26 @@ The package currently contains the following modules:
 
 The resp_spect module contains two different implementations of an acceleration response spectrum generator.
 
+- structpy.broadband:
+
+Used to broadband (per ASCE 4-16) and simplify response spectra.
+
+- structpy.rc:
+
+Generate `RcSection` objects representing Reinforced Concrete beams. Sections and rebar patterns can be visualized, and Force/Moment Interaction diagrams can be generated.
+
 - structpy.asme:
 
 The asme module is used to filter through material properties from the ASME Boiler and Pressure Vessel Code, Section II Part D 
 material property tables. The tables are assumed to be available as excel/csv files. The module functions can further interpolate
 and extrapolate temperature dependent material properties.
 
+- structpy.timehistory
+
+Time history post-processing tools including filtering and animation functions.
+
 The package requires the following modules to run:
 - numpy
 - scipy
+- pandas
 - matplotlib
-
-
-The Misc. folder contains other structural engineering related tools. The tools may 
-eventually be converted to new modules/functions in the structpy package.
-
-Misc. tools (as of 11/11/2018):
-- Generate a Force/Moment interaction diagram for a doubly-reinforced reinforced concrete section (Jupyter Notebook)
