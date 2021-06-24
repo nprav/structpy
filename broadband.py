@@ -704,7 +704,7 @@ def error_func(params, frq, rs):
 
 def get_init_fpts(regional_npts):
     """
-    Convert a list/tuple of 4 integers to an ndarray of frequenices.
+    Convert a list/tuple of 4 integers to an ndarray of frequencies.
     The 4 numbers define the number of points between 0.1Hz-1Hz, 1Hz-10Hz,
     10Hz-100Hz, and 100Hz-1000Hz.
 
