@@ -75,7 +75,7 @@ def get_step_matrix(w, zeta, dt):
     return A, B
 
 
-def step_resp_spect(acc, time_a, zeta=0.05, ext=True):
+def step_resp_spect(acc, time_a, zeta=0.05, ext=True, verbose=False):
     '''
     Generate acceleration response spectrum by the step-by-step method [1].
     The algorithm is programmed to match that from SHAKE2000. The theory behind
@@ -109,6 +109,10 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True):
         to True.
             - ext = True : Frequency range is [0.1Hz, 1000Hz]
             - ext = False : Frequency range is [0.1Hz - 100Hz]
+
+    verbose: bool, optional
+            If True, the function prints the total time taken, and the time
+            per frequency.
 
     Returns
     -------
@@ -164,13 +168,14 @@ def step_resp_spect(acc, time_a, zeta=0.05, ext=True):
     t1 = perf_counter()
     t_net = t1 - t0
 
-    print("RS done. Time taken = {:.5f}s".format(t_net),
-          "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
+    if verbose:
+        print("RS done. Time taken = {:.5f}s".format(t_net),
+              "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
 
     return rs, frq
 
 
-def fft_resp_spect(acc, time_a, zeta=0.05, ext=True):
+def fft_resp_spect(acc, time_a, zeta=0.05, ext=True, verbose=False):
     '''
     Generate acceleration response spectrum using a frequency domain
     method. This is physically accurate if the true acceleration time
@@ -199,6 +204,10 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True):
         to True.
             - ext = True : Frequency range is [0.1Hz, 1000Hz]
             - ext = False : Frequency range is [0.1Hz - 100Hz]
+
+    verbose: bool, optional
+            If True, the function prints the total time taken, and the time
+            per frequency.
 
     Returns
     -------
@@ -267,7 +276,8 @@ def fft_resp_spect(acc, time_a, zeta=0.05, ext=True):
     t1 = perf_counter()
     t_net = t1 - t0
 
-    print("RS done. Time taken = {:.5f}s".format(t_net),
-          "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
+    if verbose:
+        print("RS done. Time taken = {:.5f}s".format(t_net),
+              "\ntime per iteration = {:.5f}s".format(t_net/len(w)))
 
     return rs, frq
